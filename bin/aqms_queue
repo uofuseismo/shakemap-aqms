@@ -1,0 +1,196 @@
+#! /usr/bin/env python
+
+# System imports
+import os
+import os.path
+import logging
+from logging.handlers import TimedRotatingFileHandler
+import socket
+import argparse
+
+# Third-party imports
+import daemon
+import lockfile
+
+# Local imports
+from shakemap.utils.config import get_config_paths
+import shakemap.utils.queue as queue
+from shakemap_aqms.util import (get_aqms_config,
+                                get_eqinfo)
+
+
+def get_logger(logpath, attached):
+    """Set up a logger for this process.
+
+    Args:
+        logpath (str): Path to the directory into which to put the logfile.
+
+    Returns:
+        logging.logger: An instance of a logger.
+    """
+    logger = logging.getLogger('aqms_queue_logger')
+    logger.setLevel(logging.INFO)
+    if not attached:
+        logfile = os.path.join(logpath, 'aqms_queue.log')
+        handler = TimedRotatingFileHandler(logfile,
+                                           when='midnight',
+                                           backupCount=60)
+        formatter = logging.Formatter(
+                fmt='%(asctime)s - %(levelname)s - %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.propagate = False
+    else:
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter(
+                fmt='%(asctime)s - %(levelname)s - %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    return logger
+
+
+class Dummycontext(object):
+    def __enter__(self): return self
+
+    def __exit__(*x): pass
+
+
+def get_context(context, attached):
+    if attached:
+        return Dummycontext()
+    else:
+        return context
+
+
+def get_parser():
+    """Make an argument parser.
+
+    Returns:
+        ArgumentParser: an argparse argument parser.
+    """
+    description = """
+    Run a daemon process to accept alarm and cancel mmessages
+    and send the resulting data to sm_queue.
+    """
+    parser = argparse.ArgumentParser(
+        description=description,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('-a', '--attached', action='store_true',
+                        help='Inhibit daemonization and remain attached '
+                             'to the terminal (for testing).')
+    return parser
+
+
+def main(pargs):
+
+    install_path, data_path = get_config_paths()
+
+    aqms_conf = get_aqms_config()
+    queue_conf = get_aqms_config('aqms_queue')
+
+    if 'localhost' not in queue_conf['servers']:
+        queue_conf['servers'].append('localhost')
+    #
+    # Turn this process into a daemon
+    #
+    logpath = os.path.join(install_path, 'logs')
+    if not os.path.isdir(logpath):
+        os.makedirs(logpath)
+    pidfile = os.path.join(logpath, 'aqms_queue.pid')
+    context = daemon.DaemonContext(
+            working_directory=data_path,
+            pidfile=lockfile.FileLock(pidfile))
+
+    with get_context(context, pargs.attached):
+        logger = get_logger(logpath, pargs.attached)
+        #
+        # Create the socket
+        #
+        qsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        qsocket.bind(('', queue_conf['port']))
+        # Set a timeout so that we can occasionally look for other
+        # things to do
+        qsocket.settimeout(30)
+        qsocket.listen(5)
+
+        logger.info('aqms_queue initiated')
+
+        while True:
+            #
+            # Now wait for a connection
+            #
+            try:
+                (clientsocket, address) = qsocket.accept()
+            except socket.timeout:
+                #
+                # Normal timeout; do routine tasks and then go
+                # back to waiting for a connection
+                #
+                continue
+            #
+            # Got a connection
+            #
+            hostname, _, _ = socket.gethostbyaddr(address[0])
+#            hostname = socket.getfqdn(hostname)
+            logger.info('Got connection from %s at port %s' %
+                        (hostname, address[1]))
+
+            if hostname not in queue_conf['servers']:
+                logger.warning('Connection from %s refused: not in valid '
+                               'servers list' % hostname)
+                clientsocket.close()
+                continue
+
+            #
+            # The accept() should guarantee that there's something
+            # to read, but something could go wrong...
+            #
+            try:
+                clientsocket.settimeout(10)
+                data = clientsocket.recv(queue.MAX_SIZE)
+            except socket.timeout:
+                logger.warning('Did not get data from connection, continuing')
+                clientsocket.close()
+                continue
+            else:
+                clientsocket.close()
+            #
+            # Decode the data and do something
+            #
+            action, eventid, update = data.decode('utf-8').split(maxsplit=2)
+
+            if action == 'shake_alarm':
+                logger.info('Got shake_alarm for event %s' % eventid)
+                event = get_eqinfo(eventid, aqms_conf, logger)
+                if event is None:
+                    logger.warning("Couldn't find event %s in database" %
+                                   eventid)
+                    continue
+                try:
+                    queue.send_queue('origin', event)
+                except:
+                    logger.error("Couldn't send event %s to sm_queue" %
+                                 eventid)
+                else:
+                    logger.info('Sent event %s to sm_queue' % eventid)
+            elif action == 'shake_cancel':
+                logger.info('Got shake_cancel for event %s' % eventid)
+                try:
+                    queue.send_queue('cancel', {'id': eventid})
+                except:
+                    logger.error("Couldn't send cancel event %s to sm_queue" %
+                                 eventid)
+                else:
+                    logger.info('Sent cancel event %s to sm_queue' % eventid)
+            else:
+                logger.warning('Unknown action: %s; ignoring' % action)
+
+
+if __name__ == '__main__':
+
+    parser = get_parser()
+    pargs = parser.parse_args()
+
+    main(pargs)
