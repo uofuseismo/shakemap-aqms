@@ -1,0 +1,46 @@
+[
+  {
+    "name": "shakemap-aqms",
+    "organization": "None",
+    "description": "AQMS modules for ShakeMap",
+    "version": "0.5",
+    "status": "pre-release",
+
+    "permissions": {
+      "usageType": "openSource",
+      "licenses": [
+        {
+          "name": "Public Domain, CC0-1.0",
+          "URL": "https://github.com/cbworden/shakemap-aqms/blob/master/LICENSE.md"
+        }
+      ]
+    },
+
+    "homepageURL": "https://github.io/cbworden/shakemap-aqms/",
+    "downloadURL": "https://github.com/cbworden/shakemap-aqms/archive/master.zip",
+    "disclaimerURL": "https://github.com/cbworden/shakemap-aqms/blob/master/LICENSE.md",
+    "repositoryUrl": "https://github.com/cbworden/shakemap-aqms.git",
+    "vcs": "git",
+
+    "laborHours": null,
+
+    "tags": [
+      "earthquake",
+      "shakemap",
+      "AQMS"
+    ],
+
+    "languages": [
+      "python"
+    ],
+
+    "contact": {
+      "name": "C. Bruce Worden",
+      "email": "cbworden@usgs.gov "
+    },
+
+    "date": {
+      "metadataLastUpdated": "2018-03-26"
+    }
+  }
+]
