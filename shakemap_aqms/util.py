@@ -73,7 +73,7 @@ def get_eqinfo(eventid, config, logger):
             - depth (float)
             - mag (float)
             - time (datetime object)
-            - location (str)
+            - locstring (str)
             - mech (str)
     """
     success = False
@@ -193,6 +193,6 @@ def get_eqinfo(eventid, config, logger):
              'depth': depth.getvalue(),
              'mag': mag.getvalue(),
              'time': date,
-             'location': loc,
+             'locstring': loc,
              'mech': mech}
     return event
