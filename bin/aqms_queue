@@ -90,6 +90,8 @@ def main(pargs):
     aqms_conf = get_aqms_config()
     queue_conf = get_aqms_config('aqms_queue')
 
+    sm_queue_config = queue.get_config(install_path)
+
     if 'localhost' not in queue_conf['servers']:
         queue_conf['servers'].append('localhost')
     #
@@ -169,8 +171,8 @@ def main(pargs):
                                    eventid)
                     continue
                 try:
-                    queue.send_queue('origin', event)
-                except:
+                    queue.send_queue('origin', event, sm_queue_config['port'])
+                except Exception:
                     logger.error("Couldn't send event %s to sm_queue" %
                                  eventid)
                 else:
@@ -178,8 +180,9 @@ def main(pargs):
             elif action == 'shake_cancel':
                 logger.info('Got shake_cancel for event %s' % eventid)
                 try:
-                    queue.send_queue('cancel', {'id': eventid})
-                except:
+                    queue.send_queue('cancel', {'id': eventid},
+                                     sm_queue_config['port'])
+                except Exception:
                     logger.error("Couldn't send cancel event %s to sm_queue" %
                                  eventid)
                 else:
