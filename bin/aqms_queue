@@ -170,6 +170,7 @@ def main(pargs):
                     logger.warning("Couldn't find event %s in database" %
                                    eventid)
                     continue
+                event['alt_eventids'] = ''
                 try:
                     queue.send_queue('origin', event, sm_queue_config['port'])
                 except Exception:
@@ -180,7 +181,8 @@ def main(pargs):
             elif action == 'shake_cancel':
                 logger.info('Got shake_cancel for event %s' % eventid)
                 try:
-                    queue.send_queue('cancel', {'id': eventid},
+                    queue.send_queue('cancel', {'id': eventid,
+                                                'alt_eventids': ''},
                                      sm_queue_config['port'])
                 except Exception:
                     logger.error("Couldn't send cancel event %s to sm_queue" %
