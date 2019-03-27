@@ -12,6 +12,7 @@ from validate import Validator
 
 # Local imports
 from shakemap.utils.config import get_config_paths, config_error
+from shakelib.rupture import constants  # added by GG
 import shakemap.utils.queue as queue
 
 
@@ -98,7 +99,7 @@ def get_eqinfo(eventid, config, logger):
                  ':rake1, :rake2 '
                  'FROM netmag n, origin o, event e '
                  'LEFT OUTER JOIN mec m ON e.prefmec = m.mecid '
-                 'WHERE e.evid = :evid '
+                 'WHERE e.evid = :evid ' 
                  'AND e.selectflag = 1 '
                  'AND o.orid = e.prefor '
                  'AND n.magid = e.prefmag; '
@@ -146,7 +147,7 @@ def get_eqinfo(eventid, config, logger):
         return None
 
     dt = datetime.strptime(date.getvalue(), '%Y/%m/%d %H:%M:%S.%f')
-    date = dt.strftime(queue.TIMEFMT)
+    date = dt.strftime(constants.TIMEFMT) # changed source of TIMEFMT to proper local library - GG
 
     distmi = dist.getvalue() * 0.62137
 
