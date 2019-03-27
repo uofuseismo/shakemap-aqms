@@ -33,6 +33,6 @@ class AQMSEq2XMLModule(CoreModule):
 
         event = get_eqinfo(self._eventid, config, self.logger)
 
-        outfile = open(datafile, 'wb')
-
-        write_event_file(event, outfile)
+#        outfile = open(datafile, 'w')  
+        # SEND FILEPATH TO WRITE TO STRAIGHT TO METHOD, LET THE FILE HANDLING BE DONE DOWNSTREAM - GG      
+        write_event_file(event, datafile)
