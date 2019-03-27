@@ -138,14 +138,16 @@ class AQMSDb2XMLModule(CoreModule):
                              names=columns)
             for row in df.itertuples():
                 _, sta, net, chan, loc, t6, lat, lon, elev, name = row
-                netsta = net + '.' + sta
+                net = str(net) # cast to string
+                loc = str(loc) # cast to string
+                netsta = "%s.%s" % (net, sta) # modified concatenation style - GG
                 loc = loc.replace(' ', '-')
                 try:
                     stadict[netsta][loc][chan]['t6'] = t6
                     continue
                 except KeyError:
                     pass
-
+                name = str(name)  # cast to string
                 if ' - ' in name:
                     nn, desc = name.split(' - ', maxsplit=1)
                 else:
