@@ -19,7 +19,7 @@ if len(sys.argv) > 2:
 else:
     update = 0
 
-send_string = 'shake_alarm ' + eventid + ' ' + update
+send_string = 'shake_alarm ' + str(eventid) + ' ' + str(update) # CAST VARIABLES TO STRING TO ENSURE THEY CAN BE CONCATENATED PROPERLY - GG
 encoded_str = send_string.encode('utf-8')
 
 csocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
