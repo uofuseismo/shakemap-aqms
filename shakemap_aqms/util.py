@@ -154,33 +154,34 @@ def get_eqinfo(eventid, config, logger):
     rake1 = rake1.getvalue()
     rake2 = rake2.getvalue()
 
-    if rake1 > 180:
-        rake1 -= 360
-    if rake2 > 180:
-        rake2 -= 360
-    if rake1 < -180:
-        rake1 += 360
-    if rake2 < -180:
-        rake2 += 360
-
     mech = 'ALL'
-    if rake1 >= -135 and rake1 <= -45 and rake2 >= -135 and rake2 <= -45:
-        mech = 'NM'  # Normal
-    elif (rake1 >= -135 and rake1 <= -45) or \
-            (rake2 >= -135 and rake2 <= -45):
-        mech = 'NM'  # Oblique Normal
-    elif rake1 >= 45 and rake1 <= 135 and rake2 >= 45 and rake2 <= 135:
-        mech = 'RS'  # Reverse
-    elif (rake1 >= 45 and rake1 <= 135) or (rake2 >= 45 and rake2 <= 135):
-        mech = 'RS'  # Oblique Reverse
-    elif rake1 >= -45 and rake1 <= 45 and \
+    if rake1 is not None and rake2 is not None:  # RAKE VALUES ARE NOT ALWAYS PRESENT FOR EVENTS, DEFAULTING TO-> mech = 'ALL' - GG
+        if rake1 > 180:
+            rake1 -= 360
+        if rake2 > 180:
+            rake2 -= 360
+        if rake1 < -180:
+            rake1 += 360
+        if rake2 < -180:
+            rake2 += 360
+
+        if rake1 >= -135 and rake1 <= -45 and rake2 >= -135 and rake2 <= -45:
+            mech = 'NM'  # Normal
+        elif (rake1 >= -135 and rake1 <= -45) or (rake2 >= -135 and rake2 <= -45):
+            mech = 'NM'  # Oblique Normal
+        elif rake1 >= 45 and rake1 <= 135 and rake2 >= 45 and rake2 <= 135:
+            mech = 'RS'  # Reverse
+        elif (rake1 >= 45 and rake1 <= 135) or (rake2 >= 45 and rake2 <= 135):
+            mech = 'RS'  # Oblique Reverse
+        elif rake1 >= -45 and rake1 <= 45 and \
             ((rake2 >= 135 and rake2 <= 225) or
                 (rake2 >= -225 and rake2 <= -135)):
-        mech = 'SS'
-    elif rake2 >= -45 and rake2 <= 45 and \
+            mech = 'SS'
+        elif rake2 >= -45 and rake2 <= 45 and \
             ((rake1 >= 135 and rake1 <= 225) or
                 (rake1 >= -225 and rake1 <= -135)):
-        mech = 'SS'
+            mech = 'SS'
+
 
     direction = direction.getvalue().replace(' ', '')
     loc = '%.1f km (%.1f mi) %s of %s' % \
@@ -195,5 +196,6 @@ def get_eqinfo(eventid, config, logger):
              'mag': mag.getvalue(),
              'time': date,
              'locstring': loc,
-             'mech': mech}
+             'mech': mech,
+             'alt_eventids': "NONE"}  # ADDED alt_eventids key because sm_queue is expecting and attempts to access this dict value - GG
     return event
