@@ -193,7 +193,7 @@ def get_eqinfo(eventid, config, logger):
              'lat': lat.getvalue(),
              'lon': lon.getvalue(),
              'depth': depth.getvalue(),
-             'mag': round(mag.getvalue(), 1)
+             'mag': round(mag.getvalue(), 1),
              'time': date,
              'locstring': loc,
              'mech': mech,
