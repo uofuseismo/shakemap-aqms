@@ -3,10 +3,12 @@
 # System imports
 import os
 import os.path
+import sys
 import logging
 from logging.handlers import TimedRotatingFileHandler
 import socket
 import argparse
+from datetime import datetime
 
 # Third-party imports
 import daemon
@@ -14,6 +16,7 @@ import lockfile
 
 # Local imports
 from shakemap.utils.config import get_config_paths
+from shakelib.rupture import constants  # added by GG
 import shakemap.utils.queue as queue
 from shakemap_aqms.util import (get_aqms_config,
                                 get_eqinfo)
@@ -166,23 +169,26 @@ def main(pargs):
             if action == 'shake_alarm':
                 logger.info('Got shake_alarm for event %s' % eventid)
                 event = get_eqinfo(eventid, aqms_conf, logger)
+
                 if event is None:
                     logger.warning("Couldn't find event %s in database" %
                                    eventid)
                     continue
-                event['alt_eventids'] = ''
                 try:
+                    # Shakemap code keeps value as datetime, need string for JSON parsing by queue
+                    dt = event['time']
+                    event['time'] = dt.strftime(constants.TIMEFMT)
                     queue.send_queue('origin', event, sm_queue_config['port'])
-                except Exception:
+                except Exception as e:
                     logger.error("Couldn't send event %s to sm_queue" %
                                  eventid)
+                    logger.error(e)
                 else:
                     logger.info('Sent event %s to sm_queue' % eventid)
             elif action == 'shake_cancel':
                 logger.info('Got shake_cancel for event %s' % eventid)
                 try:
-                    queue.send_queue('cancel', {'id': eventid,
-                                                'alt_eventids': ''},
+                    queue.send_queue('cancel', {'id': eventid},
                                      sm_queue_config['port'])
                 except Exception:
                     logger.error("Couldn't send cancel event %s to sm_queue" %
