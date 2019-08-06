@@ -146,8 +146,18 @@ def get_eqinfo(eventid, config, logger):
         logger.warning('Could not retrieve event from database(s)')
         return None
 
+#    try:
+#        dt = datetime.strptime(date.getvalue(), constants.TIMEFMT)
+#    except ValueError:
+#        try:
+#            dt = datetime.strptime(date.getvalue(), constants.ALT_TIMEFMT)
+#        except ValueError:
+#            logger.error("Can't parse input time %s" % event['time'])
+#            return
+
     dt = datetime.strptime(date.getvalue(), '%Y/%m/%d %H:%M:%S.%f')
     date = dt.strftime(constants.TIMEFMT) # changed source of TIMEFMT to proper local library - GG
+    dt = datetime.strptime(date, constants.TIMEFMT)
 
     distmi = dist.getvalue() * 0.62137
 
@@ -194,7 +204,7 @@ def get_eqinfo(eventid, config, logger):
              'lon': lon.getvalue(),
              'depth': depth.getvalue(),
              'mag': round(mag.getvalue(), 1),
-             'time': date,
+             'time': dt,
              'locstring': loc,
              'mech': mech,
              'alt_eventids': "NONE"}  # ADDED alt_eventids key because sm_queue is expecting and attempts to access this dict value - GG
