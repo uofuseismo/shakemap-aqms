@@ -11,7 +11,7 @@ from shakemap.coremods.base import CoreModule
 from shakemap.utils.config import get_config_paths
 from shakemap_aqms.util import get_aqms_config
 from shakelib.rupture.origin import Origin
-from amptools.table import dataframe_to_xml
+from impactutils.io.table import dataframe_to_xml
 
 
 class AQMSDb2XMLModule(CoreModule):
