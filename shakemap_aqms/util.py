@@ -3,10 +3,14 @@ import os
 import os.path
 import logging
 import pkg_resources
+import time
 from datetime import datetime
 
 # Third party imports
 import cx_Oracle
+import pandas as pd
+import numpy as np
+from lxml import etree
 from configobj import ConfigObj
 from validate import Validator
 
@@ -14,6 +18,150 @@ from validate import Validator
 from shakemap.utils.config import get_config_paths, config_error
 from shakelib.rupture import constants  # added by GG
 import shakemap.utils.queue as queue
+
+def dataframe_to_xml(df, xmlfile, reference=None):
+    """Write a dataframe to ShakeMap XML format.
+
+    This method accepts either a dataframe from read_excel, or
+    one with this structure:
+     - STATION: Station code (REQUIRED)
+     - CHANNEL: Channel (HHE,HHN, etc.) (REQUIRED)
+     - IMT: Intensity measure type (pga,pgv, etc.) (REQUIRED)
+     - VALUE: IMT value. (REQUIRED)
+     - LAT: Station latitude. (REQUIRED)
+     - LON: Station longitude. (REQUIRED)
+     - NETID: Station contributing network. (REQUIRED)
+     - FLAG: String quality flag, meaningful to contributing networks,
+             but ShakeMap ignores any station with a non-zero value. (REQUIRED)
+     - ELEV: Elevation of station (m). (OPTIONAL)
+     - NAME: String describing station. (OPTIONAL)
+     - DISTANCE: Distance (km) from station to origin. (OPTIONAL)
+     - LOC: Description of location (i.e., "5 km south of Wellington")
+            (OPTIONAL)
+     - INSTTYPE: Instrument type (FBA, etc.) (OPTIONAL)
+
+    Args:
+        df (DataFrame): Pandas dataframe, as described in read_excel.
+        xmlfile (str): Path to file where XML file should be written.
+    """
+    if hasattr(df.columns, 'levels'):
+        top_headers = df.columns.levels[0]
+        channels = (set(top_headers) - set(REQUIRED_COLUMNS)) - set(OPTIONAL)
+    else:
+        channels = []
+    root = etree.Element('shakemap-data', code_version="3.5", map_version="3")
+
+    create_time = int(time.time())
+    stationlist = etree.SubElement(
+        root, 'stationlist', created='%i' % create_time)
+    if reference is not None:
+        stationlist.attrib['reference'] = reference
+
+    processed_stations = []
+
+    for _, row in df.iterrows():
+        tmprow = row.copy()
+        if isinstance(tmprow.index, pd.core.indexes.multi.MultiIndex):
+            tmprow.index = tmprow.index.droplevel(1)
+
+        # assign required columns
+        stationcode = str(tmprow['station']).strip() # changed from UPPER->LOWER case to match proper key value name - GG
+
+        netid = tmprow['netid'].strip() # changed from UPPER->LOWER case to match proper key value name - GG
+        if not stationcode.startswith(netid):
+            stationcode = '%s.%s' % (netid, stationcode)
+
+        # if this is a dataframe created by shakemap,
+        # there will be multiple rows per station.
+        # below we process all those rows at once,
+        # so we need this bookkeeping to know that
+        # we've already dealt with this station
+        if stationcode in processed_stations:
+            continue
+
+        station = etree.SubElement(stationlist, 'station')
+
+        station.attrib['code'] = stationcode
+        station.attrib['lat'] = '%.4f' % float(tmprow['lat']) # cast to FLOAT to match the formatting being performed - GG
+        station.attrib['lon'] = '%.4f' % float(tmprow['lon']) # cast to FLOAT to match the formatting being performed - GG
+
+        # assign optional columns
+        # changed all below from UPPER->LOWER case to match proper key value name - GG
+        if 'name' in tmprow: 
+            station.attrib['name'] = tmprow['name'].strip()
+        if 'netid' in tmprow:
+            station.attrib['netid'] = tmprow['netid'].strip()
+        if 'distance' in tmprow:
+            station.attrib['dist'] = '%.1f' % tmprow['distance']
+        if 'intensity' in tmprow:
+            station.attrib['intensity'] = '%.1f' % tmprow['intensity']
+        if 'source' in tmprow:
+            station.attrib['source'] = tmprow['source'].strip()
+        if 'loc' in tmprow:
+            station.attrib['loc'] = tmprow['loc'].strip()
+        if 'insttype' in tmprow:
+            station.attrib['insttype'] = tmprow['insttype'].strip()
+        if 'elev' in tmprow:
+            station.attrib['elev'] = '%.1f' % tmprow['elev']
+
+        if 'imt' not in tmprow.index:
+            # sort channels by N,E,Z or H1,H2,Z
+            channels = sorted(list(channels))
+
+            for channel in channels:
+                component = etree.SubElement(station, 'comp')
+                component.attrib['name'] = channel.upper()
+
+                # figure out if channel is horizontal or vertical
+                if channel[-1] in ['1', '2', 'E', 'N']:
+                    component.attrib['orientation'] = 'h'
+                else:
+                    component.attrib['orientation'] = 'z'
+
+                # create sub elements out of any of the PGMs
+                # this is extra confusing because we're trying to
+                # transition from psa03 style to SA(0.3) style.
+                # station xml format only accepts the former, but we're
+                # supporting the latter as input, and the format as output.
+
+                # loop over desired output fields
+                for pgm in ['pga', 'pgv', 'psa03', 'psa10', 'psa30']:
+                    newpgm = _translate_imt(pgm)
+                    c1 = newpgm not in row[channel]
+                    c2 = False
+                    if not c1:
+                        c2 = np.isnan(row[channel][newpgm])
+                    if c1 or c2:
+                        continue
+                    # make an element with the old style name
+                    pgm_el = etree.SubElement(component, pgm)
+                    pgm_el.attrib['flag'] = '0'
+                    pgm_el.attrib['value'] = '%.4f' % row[channel][newpgm]
+            processed_stations.append(stationcode)
+        else:
+            # this file was created by a process that has imt/value columns
+            # search the dataframe for all rows with this same station code
+            scode = tmprow['station']
+            station_rows = df[df['station'] == scode]
+
+            # now we need to find all of the channels
+            channels = station_rows['channel'].unique()
+            for channel in channels:
+                channel_rows = station_rows[station_rows['channel'] == channel]
+                component = etree.SubElement(station, 'comp')
+                component.attrib['name'] = channel.upper()
+                for _, channel_row in channel_rows.iterrows():
+                    pgm = channel_row['imt']
+                    value = channel_row['value']
+
+                    pgm_el = etree.SubElement(component, pgm)
+                    pgm_el.attrib['value'] = '%.4f' % value
+                    pgm_el.attrib['flag'] = str(channel_row['flag'])
+
+            processed_stations.append(stationcode)
+
+    tree = etree.ElementTree(root)
+    tree.write(xmlfile, pretty_print=True)
 
 
 def get_aqms_config(cname=None):
