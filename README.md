@@ -3,11 +3,7 @@ ShakeMap modules supporting the AQMS system.
 
 These modules replace queue, eq2xml, and db2xml from ShakeMap V3.5.
 
-NOTICE: I do not intend to support these
-modules. Hopefully, a conscientious AQMS user will fork this repo and
-take over maintenance of these modules. If that's you, contact me
-and let me know, and I'll freeze this repo and point our documentation
-to your repo.
+
 
 Installation
 ------------
@@ -20,7 +16,7 @@ Installation
 - If they are not already on your system, install the appropriate
   Oracle client libraries. This topic is covered in the cx\_Oracle
   install instructions mentioned above.
-- Do ``pip install git+git://github.com/cbworden/shakemap-aqms.git``. 
+- Do ``pip install git+git://github.com/ggann/shakemap-aqms.git``. 
   As an alternative, you can clone the repo and use ``pip install``
   on the local directory where you cloned the repo.
 - Configure your shake.conf file so that ``coremods`` includes
