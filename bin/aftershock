@@ -28,17 +28,22 @@ class EventQueue(object):
     a fresh start.
     """
     def __init__(self, ipath):
-INSERT INTO excludes (eruleid,ev1y,ev1x,ev2y,ev2x,ev3y,ev3x,emaglimit,eplacename,added)
-        queued_events = OrderedDict([('id', 'INTEGER_PRIMARY_KEY'),
-                                     ('eventid', 'TEXT UNIQUE'),
-                                     ('command', 'TEXT'),
-                                     ('mag', 'REAL')])
-        running_events = OrderedDict([('id', 'INTEGER_PRIMARY_KEY'),
-                                      ('eventid', 'TEXT UNIQUE'),
-                                      ('command', 'TEXT')])
-        tables = {'queued': queued_events,
-                  'running': running_events}
-        self.db_file = os.path.join(ipath, 'data', 'event_queue.db')
+
+        exclude_table = """ CREATE TABLE excludes (
+                                eid INTEGER PRIMARY KEY AUTOINCREMENT,
+                                eruleid INTEGER NOT NULL,
+                                ev1y REAL,
+                                ev1x REAL,
+                                ev2y REAL,
+                                ev2x REAL,
+                                ev3y REAL,
+                                ev3x REAL,
+                                emaglimit REAL DEFAULT 0.000,
+                                eplacename TEXT,
+                                added DATE
+                            ); """
+
+        self.db_file = os.path.join(ipath, 'data', 'aftershock_excludes.db')
         db_exists = os.path.isfile(self.db_file)
         self._connection = sqlite3.connect(self.db_file, timeout=15)
         if self._connection is None:
@@ -48,20 +53,9 @@ INSERT INTO excludes (eruleid,ev1y,ev1x,ev2y,ev2x,ev3y,ev3x,emaglimit,eplacename
         self._cursor.execute('PRAGMA foreign_keys = ON')
         self._cursor.execute('PRAGMA journal_mode = WAL')
         if not db_exists:
-            for table, tdict in tables.items():
-                createcmd = 'CREATE TABLE %s (' % table
-                nuggets = []
-                for column, ctype in tdict.items():
-                    nuggets.append('%s %s' % (column, ctype))
-                createcmd += ','.join(nuggets) + ')'
-                self._cursor.execute(createcmd)
-            self._cursor.execute('CREATE INDEX queue_index ON '
-                                 'queued(eventid)')
-            self._cursor.execute('CREATE INDEX mag_index ON '
-                                 'queued(mag)')
-            self._cursor.execute('CREATE INDEX event_index ON '
-                                 'running(eventid)')
-            self._cursor.execute('PRAGMA journal_mode = WAL')
+            self._cursor.execute(exclude_table)
+
+
 
     def __del__(self):
         """Destructor.
