@@ -11,7 +11,7 @@ Installation
 - Install ShakeMap V4 and its dependencies. See 
   https://github.com/usgs/shakemap for details.
 - Use pip or conda to install the python library **cx\_Oracle**. See
-  http://cx-oracle.readthedocs.io/en/latest/installation.html# for
+  https://cx-oracle.readthedocs.io/en/latest/user_guide/installation.html for
   detailed instructions.
 - If they are not already on your system, install the appropriate
   Oracle client libraries. This topic is covered in the cx\_Oracle
