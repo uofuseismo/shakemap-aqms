@@ -13,6 +13,7 @@ from datetime import datetime
 # Third-party imports
 import daemon
 import lockfile
+import sqlite3
 
 # Local imports
 from shakemap.utils.config import get_config_paths
@@ -22,10 +23,9 @@ from shakemap_aqms.util import (get_aqms_config,
                                 get_eqinfo)
 
 
-class EventQueue(object):
-    """Class to maintain some persistence in the event of a program
-    crash or shutdown. The db file can be removed if the operator wants
-    a fresh start.
+class aftershockDB(object):
+    """Class to build or retrieve a database for aftershock suppression. 
+    The db file can be removed if the operator wants a fresh start.
     """
     def __init__(self, ipath):
 
@@ -76,37 +76,221 @@ class EventQueue(object):
         """
         self._connection.commit()
 
-    def getQueuedEvents(self):
-        query = 'SELECT eventid, command, mag FROM queued ORDER BY mag DESC'
-        self._cursor.execute(query)
-        erows = self._cursor.fetchall()
-        return [(x[0], json.loads(x[1])) for x in erows]
 
-    def queueEvent(self, eventid, command, mag):
-        query = 'REPLACE INTO queued (eventid, command, mag) VALUES (?, ?, ?)'
-        self._cursor.execute(query, (eventid, json.dumps(command), mag))
-        self.commit()
+    def insertAftershockZone(self, valuesDict):
+        """Construct and insert a new aftershock exclusion zone into the database
+        """
+    """
+q{INSERT INTO excludes (eruleid,ev1y,ev1x,ev2y,ev2x,ev3y,ev3x,emaglimit,eplacename,added) VALUES ('%d','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%3.1f','%s','%s')},
+          $eruleid, $triangles[$i], $triangles[ $i + 1 ], $triangles[ $i + 2 ],
+          $triangles[ $i + 3 ], $triangles[ $i + 4 ], $triangles[ $i + 5 ],
+          $emaglimit, $eplacename, $gmdate;
 
-    def dequeueEvent(self, eventid):
-        query = 'DELETE FROM queued WHERE eventid = ?'
-        self._cursor.execute(query, (eventid,))
-        self.commit()
 
-    def getRunningEvents(self):
-        query = 'SELECT eventid, command FROM running'
-        self._cursor.execute(query)
-        erows = self._cursor.fetchall()
-        return [(x[0], json.loads(x[1])) for x in erows]
+    --source of the values--
+    eid INTEGER PRIMARY KEY AUTOINCREMENT (keeps the triangle records unique)
+    eruleid->comes from aftershock_define, determines if need to create or update zone
+   
+    (ev1y, ev1x, ev2y, ev2x, ev3y, ev3x)->three points of a triangle representing the region
+    There are between 4-8 triangles constructed for a single aftershock exclusion zone
+    After a single triangle is inserted a "dateline" check is run by the code.  
+    If said triangle crosses this dateline, values are modified and yet another triangle is inserted into DB. 
+    Values needed to construct the triangles:  mag, lon, lat
 
-    def insertRunningEvent(self, eventid, command):
-        query = 'INSERT INTO running (eventid, command) VALUES (?, ?)'
-        self._cursor.execute(query, (eventid, json.dumps(command)))
-        self.commit()
+    emaglimit->magnitude limit for determining exclusion threshold, usually set to (mag - 2) LET'S SET THIS THRESHOLD IN CONFIG
+    eplacename->is the event ID with net i.e. ci84838493
+    added->the datetime added    
+"""
+#    my (
+#        $eruleid,    $nsec,      $nmin,        $nhour,
+#        $nmday,      $nmon,      $nyear,       $nwday,
+#        $nyday,      $nisdst,    $TIME,        $gmdate,
+#        $olderuleid, $emaglimit, $excludename, $exclude
+#    );
+#    my (
+#        $len,      $eastlon,  $westlon,  $midlon,
+#        $eastlon2, $westlon2, $northlat, $southlat
+#    );
+#    my ( $datelineflag, $eplacename );
 
-    def deleteRunningEvent(self, eventid):
-        query = 'DELETE FROM running WHERE eventid = ?'
-        self._cursor.execute(query, (eventid,))
-        self.commit()
+    $TIME       = time;
+    $eplacename = uc($net) . $eventid;
+
+    $sql = 'SELECT max(eruleid) from excludes';
+    $sth = $dbh->prepare("$sql");
+    $sth->execute
+      or die "Unable to execute query: $dbh->errstr\n";
+    while ( @row = $sth->fetchrow_array ) {
+        $eruleid = $row[0] + 1;
+        print {$LOG} "Assigning eruleid $eruleid to event $net $eventid\n";
+    }
+    $sth->finish;
+    ( $nsec, $nmin, $nhour, $nmday, $nmon, $nyear, $nwday, $nyday, $nisdst ) =
+      gmtime $TIME;
+    $nmon++;
+    $nyear = $nyear + 1900;
+    $gmdate = sprintf '%04d-%02d-%02d', $nyear, $nmon, $nmday, $nhour, $nmin,
+      $nsec;
+
+###    $len = 10**( $mag - 5 ) + 5;
+#
+# Got this formula from Morgan Page - sms 30apr2010
+# The old formula that I got from Lucy was making the zone too
+# big for large events. If we had another Sumatra event, the
+# aftershock zone would cover the entire Earth, and that is just
+# too broad a brush for this application. So Morgan dug out a
+# paper from her desk and found the following formula:
+# Wells and Coppersmith (1994) Surface rupture length (all slip types)
+# to magnitude
+    $len = 10**(0.69*$mag - 3.22);
+#
+# Multiply by 2 for two rupture lengths
+    $len = $len * 2;
+
+    print {$LOG} "Length is $len km\n";
+
+    my $pi          = 3.1415927;
+    my $deg2rad     = 0.17453293e-1;
+    my $rad2deg     = 57.295779;
+    my $earthradius = 6371;            # earthradius in km
+    my $sqrt3       = 1.732050807;
+
+    $londiff = 2 * $pi * ( $len / ( 2 * $pi * $earthradius ) ) * $rad2deg;
+    $eastlon = $lon + $londiff;
+    $westlon = $lon - $londiff;
+
+    $midlon   = $londiff / 2;
+    $eastlon2 = $lon + $midlon;
+    $westlon2 = $lon - $midlon;
+
+    $latdiff =
+      2 *
+      $pi *
+      ( ( $sqrt3 * $len / 2 ) / ( 2 * $pi * $earthradius ) ) *
+      $rad2deg;
+    $northlat = $lat + $latdiff;
+    $southlat = $lat - $latdiff;
+
+    print {$LOG}
+"Zone runs from $eastlon to $westlon\nLat goes from $northlat to $southlat\n";
+
+    print {$LOG} "Proposed points are:\n";
+    print {$LOG} "  $lat/$westlon\n";
+    print {$LOG} "  $northlat/$westlon2\n";
+    print {$LOG} "  $northlat/$eastlon2\n";
+    print {$LOG} "  $lat/$eastlon\n";
+    print {$LOG} "  $southlat/$eastlon2\n";
+    print {$LOG} "  $southlat/$westlon2\n";
+
+    print {$LOG} "\nTriangles are:\n";
+    printf {$LOG} "%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f\n", $lat, $westlon,
+      $northlat, $westlon2, $northlat, $eastlon2;
+    printf {$LOG} "%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f\n", $lat, $westlon,
+      $northlat, $eastlon2, $southlat, $westlon2;
+    printf {$LOG} "%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f\n", $northlat,
+      $eastlon2, $lat, $eastlon, $southlat, $westlon2;
+    printf {$LOG} "%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f\n", $lat, $eastlon,
+      $southlat, $eastlon2, $southlat, $westlon2;
+
+    my @triangles = (
+        $lat,      $westlon,  $northlat, $westlon2, $northlat, $eastlon2,
+        $lat,      $westlon,  $northlat, $eastlon2, $southlat, $westlon2,
+        $northlat, $eastlon2, $lat,      $eastlon,  $southlat, $westlon2,
+        $lat,      $eastlon,  $southlat, $eastlon2, $southlat, $westlon2
+    );
+
+    $emaglimit = $mag - 2;
+
+    print {$LOG} "\nMagnitude level is $emaglimit\n";
+
+    #      $sql = "DELETE FROM excludes where eruleid=$eruleid";
+    #      $sth = $dbh->prepare("$sql");
+    #      $sth->execute or
+    #   die "Unable to execute query: $dbh->errstr\n";
+    #      $sth->finish;
+
+    for ( $i = 0 ; $i <= 18 ; $i = $i + 6 ) {
+        $datelineflag = 0;
+        $sql =
+          sprintf
+q{INSERT INTO excludes (eruleid,ev1y,ev1x,ev2y,ev2x,ev3y,ev3x,emaglimit,eplacename,added) VALUES ('%d','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%3.1f','%s','%s')},
+          $eruleid, $triangles[$i], $triangles[ $i + 1 ], $triangles[ $i + 2 ],
+          $triangles[ $i + 3 ], $triangles[ $i + 4 ], $triangles[ $i + 5 ],
+          $emaglimit, $eplacename, $gmdate;
+        print {$LOG} "SQL is $sql\n";
+        $sth = $dbh->prepare("$sql");
+        $sth->execute
+          or die "Unable to execute query: $dbh->errstr\n";
+        $sth->finish;
+
+        if (   ( $triangles[1] > 180 )
+            || ( $triangles[3] > 180 )
+            || ( $triangles[5] > 180 ) )
+        {
+            print {$LOG} "This triangle crosses the Date Line at 180\n";
+            $datelineflag = 1;
+        }
+        if (   ( $triangles[1] < -180 )
+            || ( $triangles[3] < -180 )
+            || ( $triangles[5] < -180 ) )
+        {
+            print {$LOG} "This triangle crosses the Date Line at -180\n";
+            $datelineflag = -1;
+        }
+        if ( $datelineflag != 0 ) {
+
+            $triangles[1] = $triangles[1] - $datelineflag * 360;
+            $triangles[3] = $triangles[3] - $datelineflag * 360;
+            $triangles[5] = $triangles[5] - $datelineflag * 360;
+            $sql =
+              sprintf
+q{INSERT INTO excludes (eruleid,ev1y,ev1x,ev2y,ev2x,ev3y,ev3x,emaglimit,eplacename,added) VALUES ('%d','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%3.1f','%s','%s')},
+              $eruleid, $triangles[$i], $triangles[ $i + 1 ],
+              $triangles[ $i + 2 ], $triangles[ $i + 3 ], $triangles[ $i + 4 ],
+              $triangles[ $i + 5 ], $emaglimit, $eplacename, $gmdate;
+            print {$LOG} "SQL is $sql\n";
+            $sth = $dbh->prepare("$sql");
+            $sth->execute
+              or die "Unable to execute query: $dbh->errstr\n";
+            $sth->finish;
+        }
+    }
+    return 0;
+}
+
+
+
+#    def getQueuedEvents(self):
+#        query = 'SELECT eventid, command, mag FROM queued ORDER BY mag DESC'
+#        self._cursor.execute(query)
+#        erows = self._cursor.fetchall()
+#        return [(x[0], json.loads(x[1])) for x in erows]
+
+#    def queueEvent(self, eventid, command, mag):
+#        query = 'REPLACE INTO queued (eventid, command, mag) VALUES (?, ?, ?)'
+#        self._cursor.execute(query, (eventid, json.dumps(command), mag))
+#        self.commit()
+
+#    def dequeueEvent(self, eventid):
+#        query = 'DELETE FROM queued WHERE eventid = ?'
+#        self._cursor.execute(query, (eventid,))
+#        self.commit()
+
+#    def getRunningEvents(self):
+#        query = 'SELECT eventid, command FROM running'
+#        self._cursor.execute(query)
+#        erows = self._cursor.fetchall()
+#        return [(x[0], json.loads(x[1])) for x in erows]
+
+#    def insertRunningEvent(self, eventid, command):
+#        query = 'INSERT INTO running (eventid, command) VALUES (?, ?)'
+#        self._cursor.execute(query, (eventid, json.dumps(command)))
+#        self.commit()
+
+#    def deleteRunningEvent(self, eventid):
+#        query = 'DELETE FROM running WHERE eventid = ?'
+#        self._cursor.execute(query, (eventid,))
+#        self.commit()
 
 def get_logger(logpath, attached):
     """Set up a logger for this process.
@@ -198,6 +382,11 @@ def main(pargs):
 
     with get_context(context, pargs.attached):
         logger = get_logger(logpath, pargs.attached)
+        #
+        # Create/retrieve the database for aftershock suppression
+        #
+        if 'aftershock' in queue_conf:  # aftershock flag is set, proceed 
+            self.aftershockDB = aftershockDB(install_path)
         #
         # Create the socket
         #
