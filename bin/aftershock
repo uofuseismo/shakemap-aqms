@@ -28,15 +28,10 @@ class aftershockDB(object):
     """Class to build or retrieve a database for aftershock suppression. 
     The db file can be removed if the operator wants a fresh start.
     """
-    def __init__(self, ipath, logger, valuesDict):
+    def __init__(self, ipath, logger):
         self.logger = logger
-        self.lat = valuesDict.get("lat")
-        self.lon = valuesDict.get("lon")
-        self.mag = valuesDict.get("mag")
-        self.eventID = valuesDict.get("eventID")
-        self.emaglimit = valuesDict.get("emaglimit")
+        self.logger.info('aftershock DB initiated')
 
-        self.logger.info('aftershock initiated')
         exclude_table = """ CREATE TABLE excludes (
                                 eid INTEGER PRIMARY KEY AUTOINCREMENT,
                                 eruleid INTEGER NOT NULL,
@@ -85,7 +80,7 @@ class aftershockDB(object):
         self._connection.commit()
 
 
-    def insertAftershockZone(self):
+    def insertAftershockZone(self, valuesDict):
         """Construct and insert a new aftershock exclusion zone into the database
         --source of the values--
         eid INTEGER PRIMARY KEY AUTOINCREMENT (keeps the triangle records unique)
@@ -105,110 +100,116 @@ class aftershockDB(object):
 #    TIME       = time;
 #    eplacename = uc(net) . eventid;
 
-    sql = """SELECT max(eruleid) from excludes;""";
-    self._cursor.execute(sql)
-    rows = self._cursor.fetchall()
-    for row in rows:
-        print(row)
-        eruleid = row[0] + 1;
-        self.logger.info('Assigning eruleid ' + eruleid + ' to event ' + self.eventID)
-    }
+        self.lat = valuesDict.get("lat")
+        self.lon = valuesDict.get("lon")
+        self.mag = valuesDict.get("mag")
+        self.eventID = valuesDict.get("eventID")
+        self.emaglimit = valuesDict.get("emaglimit")
+        self.eruleID = 0
 
-    gmdate = datetime.now()
-#
-# Got this formula from Morgan Page - sms 30apr2010
-# The old formula that I got from Lucy was making the zone too
-# big for large events. If we had another Sumatra event, the
-# aftershock zone would cover the entire Earth, and that is just
-# too broad a brush for this application. So Morgan dug out a
-# paper from her desk and found the following formula:
-# Wells and Coppersmith (1994) Surface rupture length (all slip types)
-# to magnitude
-    ruptureLength = 10**(0.69 * mag - 3.22)
-#
-# Multiply by 2 for two rupture lengths
-    ruptureLength = ruptureLength * 2
+        sql = """SELECT max(eruleid) from excludes;"""
+        self._cursor.execute(sql)
+        rows = self._cursor.fetchall()
+        for row in rows:
+            print(row)
+            if row[0] is not None:
+                self.eruleID = row[0] + 1;
+            self.logger.info('Assigning eruleid %i to event %s' % (self.eruleID, self.eventID))
 
-    self.logger.info("Length is " + ruptureLength + " km"
+        gmdate = datetime.now()
+    #
+    # Got this formula from Morgan Page - sms 30apr2010
+    # The old formula that I got from Lucy was making the zone too
+    # big for large events. If we had another Sumatra event, the
+    # aftershock zone would cover the entire Earth, and that is just
+    # too broad a brush for this application. So Morgan dug out a
+    # paper from her desk and found the following formula:
+    # Wells and Coppersmith (1994) Surface rupture length (all slip types)
+    # to magnitude
+        ruptureLength = 10**(0.69 * self.mag - 3.22)
+    #
+    # Multiply by 2 for two rupture lengths
+        ruptureLength = ruptureLength * 2
 
-    rad2deg = 57.295779
-    earthradius = 6371            # earthradius in km
-    sqrtThree = 1.732050807
+        self.logger.info("Length is %f km" % ruptureLength)
 
-    londiff = 2 * math.pi * ( ruptureLength / ( 2 * math.pi * earthradius ) ) * rad2deg
-    eastlon = lon + londiff
-    westlon = lon - londiff
+        radToDeg = 57.295779
+        earthradius = 6371            # earthradius in km
+        sqrtThree = 1.732050807
 
-    midlon   = londiff / 2
-    eastlon2 = lon + midlon
-    westlon2 = lon - midlon
+        londiff = 2 * math.pi * ( ruptureLength / ( 2 * math.pi * earthradius ) ) * radToDeg
+        eastlon = self.lon + londiff
+        westlon = self.lon - londiff
 
-    latdiff = 2 * math.pi * ( ( sqrtThree * ruptureLength / 2 ) / ( 2 * math.pi * earthradius ) ) * rad2deg
-    northlat = lat + latdiff
-    southlat = lat - latdiff
+        midlon   = londiff / 2
+        eastlon2 = self.lon + midlon
+        westlon2 = self.lon - midlon
 
-    self.logger.info("Zone runs from eastlon to westlon")
-    self.logger.info("Lat goes from northlat to southlat")
+        latdiff = 2 * math.pi * ( ( sqrtThree * ruptureLength / 2 ) / ( 2 * math.pi * earthradius ) ) * radToDeg
+        northlat = self.lat + latdiff
+        southlat = self.lat - latdiff
 
-    self.logger.info("Proposed points are: ")
-    self.logger.info("  lat/westlon")
-    self.logger.info("  northlat/westlon2")
-    self.logger.info("  northlat/eastlon2")
-    self.logger.info("  lat/eastlon")
-    self.logger.info("  southlat/eastlon2")
-    self.logger.info("  southlat/westlon2")
+        self.logger.info("Zone runs from eastlon to westlon")
+        self.logger.info("Lat goes from northlat to southlat")
 
-    self.logger.info("Triangles are:  ")
-    self.logger.info("%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f" % (lat, westlon,
-      northlat, westlon2, northlat, eastlon2))
-    self.logger.info("%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f" % (lat, westlon,
-      northlat, eastlon2, southlat, westlon2))
-    self.logger.info("%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f" % (northlat,
-      eastlon2, lat, eastlon, southlat, westlon2))
-    self.logger.info("%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f" % (lat, eastlon,
-      southlat, eastlon2, southlat, westlon2))
+        self.logger.info("Proposed points are: ")
+        self.logger.info("  lat/westlon")
+        self.logger.info("  northlat/westlon2")
+        self.logger.info("  northlat/eastlon2")
+        self.logger.info("  lat/eastlon")
+        self.logger.info("  southlat/eastlon2")
+        self.logger.info("  southlat/westlon2")
 
-    triangleDict = {0: [lat, westlon, northlat, westlon2, northlat, eastlon2],
-                    1: [lat, westlon, northlat, eastlon2, southlat, westlon2],
-                    2: [northlat, eastlon2, lat, eastlon, southlat, westlon2],
-                    3: [lat, eastlon, southlat, eastlon2, southlat, westlon2]}
+        self.logger.info("Triangles are:  ")
+        self.logger.info("%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f" % (self.lat, westlon,
+          northlat, westlon2, northlat, eastlon2))
+        self.logger.info("%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f" % (self.lat, westlon,
+          northlat, eastlon2, southlat, westlon2))
+        self.logger.info("%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f" % (northlat,
+          eastlon2, self.lat, eastlon, southlat, westlon2))
+        self.logger.info("%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f" % (self.lat, eastlon,
+          southlat, eastlon2, southlat, westlon2))
+
+        triangleDict = {0: [self.lat, westlon, northlat, westlon2, northlat, eastlon2],
+                        1: [self.lat, westlon, northlat, eastlon2, southlat, westlon2],
+                        2: [northlat, eastlon2, self.lat, eastlon, southlat, westlon2],
+                        3: [self.lat, eastlon, southlat, eastlon2, southlat, westlon2]}
 
 
-    self.logger.info("Magnitude level is " + self.emaglimit)
+        self.logger.info("Magnitude level is %i" % self.emaglimit)
 
 
-    for key, value in triangleDict.items():
-        datelineflag = 0
-        insertQuery = """INSERT INTO excludes (eruleid,ev1y,ev1x,ev2y,ev2x,ev3y,ev3x,emaglimit,eplacename,added)
-                         VALUES ('%d','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%3.1f','%s','%s')"""
-                         % (eruleid, value[0], value[1], value[2], value[3], value[4], value[5],
-                         emaglimit, eplacename, gmdate)
-        self.logger.info("SQL is " + insertQuery)
-        self._cursor.execute(insertQuery)
-        self.commit()
-        
-        datelineTriangle = triangleDict.get(0)
-
-        if (datelineTriangle[1] > 180) || (datelineTriangle[3] > 180) || (datelineTriangle[5] > 180):
-            self.logger.info("This triangle crosses the Date Line at 180")
-            datelineflag = 1
-
-        if (datelineTriangle[1] > -180) || (datelineTriangle[3] > -180) || (datelineTriangle[5] > -180):
-            self.logger.info("This triangle crosses the Date Line at -180")
-            datelineflag = -1
-
-        if datelineflag != 0:
-            datelineTriangle[1] = datelineTriangle[1] - datelineflag * 360
-            datelineTriangle[3] = datelineTriangle[3] - datelineflag * 360
-            datelineTriangle[5] = datelineTriangle[5] - datelineflag * 360
+        for key, value in triangleDict.items():
+            datelineflag = 0
             insertQuery = """INSERT INTO excludes (eruleid,ev1y,ev1x,ev2y,ev2x,ev3y,ev3x,emaglimit,eplacename,added)
-                            VALUES ('%d','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%3.1f','%s','%s')"""
-                            % (eruleid, value[0], value[1], value[2], value[3], value[4], value[5],
-                            emaglimit, eplacename, gmdate)
+                             VALUES ('%d','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%3.1f','%s','%s');
+                          """ % (self.eruleID, value[0], value[1], value[2], value[3], value[4], value[5], self.emaglimit, self.eventID, gmdate)
             self.logger.info("SQL is " + insertQuery)
             self._cursor.execute(insertQuery)
             self.commit()
-    return 0
+        
+            datelineTriangle = triangleDict.get(0)
+
+            if (datelineTriangle[1] > 180) or (datelineTriangle[3] > 180) or (datelineTriangle[5] > 180):
+                self.logger.info("This triangle crosses the Date Line at 180")
+                datelineflag = 1
+
+            if (datelineTriangle[1] > -180) or (datelineTriangle[3] > -180) or (datelineTriangle[5] > -180):
+                self.logger.info("This triangle crosses the Date Line at -180")
+                datelineflag = -1
+
+            if datelineflag != 0:
+                datelineTriangle[1] = datelineTriangle[1] - datelineflag * 360
+                datelineTriangle[3] = datelineTriangle[3] - datelineflag * 360
+                datelineTriangle[5] = datelineTriangle[5] - datelineflag * 360
+                insertQuery = """INSERT INTO excludes (eruleid,ev1y,ev1x,ev2y,ev2x,ev3y,ev3x,emaglimit,eplacename,added)
+                                 VALUES ('%d','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%3.1f','%s','%s');
+                              """ % (self.eruleID, value[0], value[1], value[2], value[3], value[4], value[5], self.emaglimit, self.eventID, gmdate)
+                self.logger.info("SQL is " + insertQuery)
+                self._cursor.execute(insertQuery)
+                self.commit()
+
+        return True
 
 
 #    def getQueuedEvents(self):
@@ -402,6 +403,10 @@ def main(pargs):
                     logger.warning("Couldn't find event %s in database" %
                                    eventid)
                     continue
+                # check for aftershock zone
+
+                # no matching zone, insert a new aftershock zone
+#                returnVal = self.aftershockDB.insertAftershockZone(event)
                 try:
                     # Shakemap code keeps value as datetime, need string for JSON parsing by queue
                     dt = event['time']
