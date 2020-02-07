@@ -28,9 +28,14 @@ class aftershockDB(object):
     """Class to build or retrieve a database for aftershock suppression. 
     The db file can be removed if the operator wants a fresh start.
     """
-    def __init__(self, ipath, logger):
-        self.logger = logger
-        self.logger.info('aftershock DB initiated')
+    def __init__(self, ipath):
+        self.ASlogger = logging.getLogger('aftershock')
+        self.ASlogger.setLevel(logging.INFO)
+        self.ASlogger.propagate = False
+        self.AShandler = logging.FileHandler("aftershock.log")
+        self.ASlogger.addHandler(self.AShandler)
+        self.ASlogger.info('aftershock DB initiated')
+        print("DEBUG INITIATE")
 
         exclude_table = """ CREATE TABLE excludes (
                                 eid INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -114,7 +119,7 @@ class aftershockDB(object):
             print(row)
             if row[0] is not None:
                 self.eruleID = row[0] + 1;
-            self.logger.info('Assigning eruleid %i to event %s' % (self.eruleID, self.eventID))
+            self.ASlogger.info('Assigning eruleid %i to event %s' % (self.eruleID, self.eventID))
 
         gmdate = datetime.now()
     #
@@ -130,8 +135,8 @@ class aftershockDB(object):
     #
     # Multiply by 2 for two rupture lengths
         ruptureLength = ruptureLength * 2
-
-        self.logger.info("Length is %f km" % ruptureLength)
+        print("DEBUG RUPTURE")
+        self.ASlogger.info("Length is %f km" % ruptureLength)
 
         radToDeg = 57.295779
         earthradius = 6371            # earthradius in km
@@ -149,25 +154,25 @@ class aftershockDB(object):
         northlat = self.lat + latdiff
         southlat = self.lat - latdiff
 
-        self.logger.info("Zone runs from eastlon to westlon")
-        self.logger.info("Lat goes from northlat to southlat")
+        self.ASlogger.info("Zone runs from eastlon to westlon")
+        self.ASlogger.info("Lat goes from northlat to southlat")
 
-        self.logger.info("Proposed points are: ")
-        self.logger.info("  lat/westlon")
-        self.logger.info("  northlat/westlon2")
-        self.logger.info("  northlat/eastlon2")
-        self.logger.info("  lat/eastlon")
-        self.logger.info("  southlat/eastlon2")
-        self.logger.info("  southlat/westlon2")
+        self.ASlogger.info("Proposed points are: ")
+        self.ASlogger.info("  lat/westlon")
+        self.ASlogger.info("  northlat/westlon2")
+        self.ASlogger.info("  northlat/eastlon2")
+        self.ASlogger.info("  lat/eastlon")
+        self.ASlogger.info("  southlat/eastlon2")
+        self.ASlogger.info("  southlat/westlon2")
 
-        self.logger.info("Triangles are:  ")
-        self.logger.info("%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f" % (self.lat, westlon,
+        self.ASlogger.info("Triangles are:  ")
+        self.ASlogger.info("%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f" % (self.lat, westlon,
           northlat, westlon2, northlat, eastlon2))
-        self.logger.info("%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f" % (self.lat, westlon,
+        self.ASlogger.info("%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f" % (self.lat, westlon,
           northlat, eastlon2, southlat, westlon2))
-        self.logger.info("%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f" % (northlat,
+        self.ASlogger.info("%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f" % (northlat,
           eastlon2, self.lat, eastlon, southlat, westlon2))
-        self.logger.info("%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f" % (self.lat, eastlon,
+        self.ASlogger.info("%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f" % (self.lat, eastlon,
           southlat, eastlon2, southlat, westlon2))
 
         triangleDict = {0: [self.lat, westlon, northlat, westlon2, northlat, eastlon2],
@@ -176,7 +181,7 @@ class aftershockDB(object):
                         3: [self.lat, eastlon, southlat, eastlon2, southlat, westlon2]}
 
 
-        self.logger.info("Magnitude level is %i" % self.emaglimit)
+        self.ASlogger.info("Magnitude level is %i" % self.emaglimit)
 
 
         for key, value in triangleDict.items():
@@ -184,18 +189,18 @@ class aftershockDB(object):
             insertQuery = """INSERT INTO excludes (eruleid,ev1y,ev1x,ev2y,ev2x,ev3y,ev3x,emaglimit,eplacename,added)
                              VALUES ('%d','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%3.1f','%s','%s');
                           """ % (self.eruleID, value[0], value[1], value[2], value[3], value[4], value[5], self.emaglimit, self.eventID, gmdate)
-            self.logger.info("SQL is " + insertQuery)
+            self.ASlogger.info("SQL is " + insertQuery)
             self._cursor.execute(insertQuery)
             self.commit()
         
             datelineTriangle = triangleDict.get(0)
 
             if (datelineTriangle[1] > 180) or (datelineTriangle[3] > 180) or (datelineTriangle[5] > 180):
-                self.logger.info("This triangle crosses the Date Line at 180")
+                self.ASlogger.info("This triangle crosses the Date Line at 180")
                 datelineflag = 1
 
             if (datelineTriangle[1] > -180) or (datelineTriangle[3] > -180) or (datelineTriangle[5] > -180):
-                self.logger.info("This triangle crosses the Date Line at -180")
+                self.ASlogger.info("This triangle crosses the Date Line at -180")
                 datelineflag = -1
 
             if datelineflag != 0:
@@ -205,7 +210,7 @@ class aftershockDB(object):
                 insertQuery = """INSERT INTO excludes (eruleid,ev1y,ev1x,ev2y,ev2x,ev3y,ev3x,emaglimit,eplacename,added)
                                  VALUES ('%d','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%3.1f','%s','%s');
                               """ % (self.eruleID, value[0], value[1], value[2], value[3], value[4], value[5], self.emaglimit, self.eventID, gmdate)
-                self.logger.info("SQL is " + insertQuery)
+                self.ASlogger.info("SQL is " + insertQuery)
                 self._cursor.execute(insertQuery)
                 self.commit()
 
@@ -338,7 +343,7 @@ def main(pargs):
         # Create/retrieve the database for aftershock suppression
         #
         if 'aftershock' in queue_conf:  # aftershock flag is set, proceed 
-            self.aftershockDB = aftershockDB(install_path, logger)
+            self.aftershockDB = aftershockDB(install_path)
         #
         # Create the socket
         #
