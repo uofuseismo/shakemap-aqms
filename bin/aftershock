@@ -154,16 +154,17 @@ class aftershockDB(object):
         northlat = self.lat + latdiff
         southlat = self.lat - latdiff
 
-        self.ASlogger.info("Zone runs from eastlon to westlon")
-        self.ASlogger.info("Lat goes from northlat to southlat")
+        self.ASlogger.info("Zone runs from %3.3f to %3.3f" % (eastlon,westlon))
+        self.ASlogger.info("Lat goes from %3.3f to %3.3f" % (northlat,southlat))
 
         self.ASlogger.info("Proposed points are: ")
-        self.ASlogger.info("  lat/westlon")
-        self.ASlogger.info("  northlat/westlon2")
-        self.ASlogger.info("  northlat/eastlon2")
-        self.ASlogger.info("  lat/eastlon")
-        self.ASlogger.info("  southlat/eastlon2")
-        self.ASlogger.info("  southlat/westlon2")
+        self.ASlogger.info("%3.3f/%3.3f" % (self.lat,westlon))
+        self.ASlogger.info("%3.3f/%3.3f" % (northlat,westlon2))
+        self.ASlogger.info("%3.3f/%3.3f" % (northlat,eastlon2))
+        self.ASlogger.info("%3.3f/%3.3f" % (self.lat,eastlon))
+        self.ASlogger.info("%3.3f/%3.3f" % (southlat,eastlon2))
+        self.ASlogger.info("%3.3f/%3.3f" % (southlat,westlon2))
+
 
         self.ASlogger.info("Triangles are:  ")
         self.ASlogger.info("%3.3f/%3.3f, %3.3f/%3.3f, %3.3f/%3.3f" % (self.lat, westlon,
@@ -180,15 +181,15 @@ class aftershockDB(object):
                         2: [northlat, eastlon2, self.lat, eastlon, southlat, westlon2],
                         3: [self.lat, eastlon, southlat, eastlon2, southlat, westlon2]}
 
-
-        self.ASlogger.info("Magnitude level is %i" % self.emaglimit)
+        self.DBemaglimit = self.mag - self.emaglimit;
+        self.ASlogger.info("Magnitude level is %3.1f" % self.DBemaglimit)
 
 
         for key, value in triangleDict.items():
             datelineflag = 0
             insertQuery = """INSERT INTO excludes (eruleid,ev1y,ev1x,ev2y,ev2x,ev3y,ev3x,emaglimit,eplacename,added)
                              VALUES ('%d','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%3.1f','%s','%s');
-                          """ % (self.eruleID, value[0], value[1], value[2], value[3], value[4], value[5], self.emaglimit, self.eventID, gmdate)
+                          """ % (self.eruleID, value[0], value[1], value[2], value[3], value[4], value[5], self.DBemaglimit, self.eventID, gmdate)
             self.ASlogger.info("SQL is " + insertQuery)
             self._cursor.execute(insertQuery)
             self.commit()
@@ -199,7 +200,7 @@ class aftershockDB(object):
                 self.ASlogger.info("This triangle crosses the Date Line at 180")
                 datelineflag = 1
 
-            if (datelineTriangle[1] > -180) or (datelineTriangle[3] > -180) or (datelineTriangle[5] > -180):
+            if (datelineTriangle[1] < -180) or (datelineTriangle[3] < -180) or (datelineTriangle[5] < -180):
                 self.ASlogger.info("This triangle crosses the Date Line at -180")
                 datelineflag = -1
 
@@ -209,12 +210,54 @@ class aftershockDB(object):
                 datelineTriangle[5] = datelineTriangle[5] - datelineflag * 360
                 insertQuery = """INSERT INTO excludes (eruleid,ev1y,ev1x,ev2y,ev2x,ev3y,ev3x,emaglimit,eplacename,added)
                                  VALUES ('%d','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%4.2f','%3.1f','%s','%s');
-                              """ % (self.eruleID, value[0], value[1], value[2], value[3], value[4], value[5], self.emaglimit, self.eventID, gmdate)
+                              """ % (self.eruleID, value[0], value[1], value[2], value[3], value[4], value[5], self.DBemaglimit, self.eventID, gmdate)
                 self.ASlogger.info("SQL is " + insertQuery)
                 self._cursor.execute(insertQuery)
                 self.commit()
 
         return True
+
+
+    def checkAftershockZone(self, valuesDict):
+
+        self.lat = valuesDict.get("lat")
+        self.lon = valuesDict.get("lon")
+        self.mag = valuesDict.get("mag")
+        self.excludename = valuesDict.get("eventID")
+        self.emaglimit = valuesDict.get("emaglimit")
+
+        self.excluderegion = 0    #start by assuming it's not in an exclude region
+        self.olderuleid = 0
+
+        # 0 = not in an exclude region
+        # 1 = in an exclude region, and it's smaller than the exclude level
+        # 2 = in an exclude region, and it's larger than the exclude level
+        # 3 = in an exclude region, and it's larger than the previous mainshock
+
+        self.ASlogger.info("Checking to see if the event is in an already defined exclude region")
+        self.sql = """SELECT DISTINCT eruleid,emaglimit,eplacename,(((((ev2x-(%s))*(ev3y-(%s))) - ((ev3x-(%s))*(ev2y-(%s))))/(((ev2x-ev1x)*(ev3y-ev1y)) - ((ev3x-ev1x)*(ev2y-ev1y))))>=0 AND ((((ev3x-(%s))*(ev1y-(%s))) - ((ev1x-(%s))*(ev3y-(%s))))/(((ev2x-ev1x)*(ev3y-ev1y)) - ((ev3x-ev1x)*(ev2y-ev1y))))>=0 AND ((((ev1x-(%s))*(ev2y-(%s))) - ((ev2x-(%s))*(ev1y-(%s))))/(((ev2x-ev1x)*(ev3y-ev1y)) - ((ev3x-ev1x)*(ev2y-ev1y))))>=0) as exclude from excludes;
+                   """ % (self.lon, self.lat, self.lon, self.lat, self.lon, self.lat, self.lon, self.lat, self.lon, self.lat, self.lon, self.lat)
+        self.ASlogger.info("SQL is %s" % self.sql)
+        self._cursor.execute(self.sql)
+        self.rows = self._cursor.fetchall()
+        for row in self.rows:
+            self.exclude = row[3]
+            if self.exclude == 1:
+                self.olderuleid = row[0]
+                self.DBemaglimit = row[1]
+                self.excludename = row[2]
+                self.excluderegion = 1
+                break
+
+        if self.excluderegion > 0:
+            self.ASlogger.info("This event falls inside an exclude region eruleid %d M%3.1f for event %s" % (self.olderuleid, self.DBemaglimit, self.excludename))
+            if self.mag > self.DBemaglimit:
+                self.excluderegion = 2
+            self.oldmag = self.DBemaglimit + self.emaglimit
+            if self.mag > self.oldmag:
+                self.excluderegion = 3
+
+        return "%s %s %s" % (self.excluderegion, self.excludename, self.olderuleid)
 
 
 #    def getQueuedEvents(self):
