@@ -2,11 +2,12 @@
 
 """aftershock_unittest runs unit tests on the aftershock script in shakemap-aqms"""
 
+import os
 import unittest
-
+import logging
 import sqlite3
 
-import aftershock
+from aftershock import aftershockDB
 
 from shakemap.utils.config import get_config_paths
 from shakemap_aqms.util import (get_aqms_config,
@@ -15,17 +16,70 @@ from shakemap_aqms.util import (get_aqms_config,
 
 class TestAftershock(unittest.TestCase):
     """Checks the values of the outputs of aftershock"""
-    def setUp(self):
+    @classmethod
+    def setUpClass(cls):
         install_path, data_path = get_config_paths()
-        self.queue_conf = get_aqms_config('aqms_queue')
-        self.aftershockDB = aftershock.aftershockDB(install_path)
-    def testAftershockDB(self):
-        """Tests to make sure a DB was created properly"""
-        self.assertTrue(sqlite3.connect(self.aftershockDB.db_file, timeout=15))
+        cls.queue_conf = get_aqms_config('aqms_queue')
+        cls.event = {"lat": 35.770, "lon": 117.599, "id": 12345678, "netid": "ci", "mag": 7.1, "emaglimit": 2}
+        cls.insideRegionEvent = {"lat": 35.83, "lon": 117.33, "id": 22345678, "netid": "ci", "mag": 5.1, "emaglimit": 2}
+        cls.outsideRegionEvent = {"lat": 36.61, "lon": 117.15, "id": 32345678, "netid": "ci", "mag": 5.0, "emaglimit": 2}
+        cls.event.update({"eventID": (cls.event.get("netid") + str(cls.event.get("id")))})
+        cls.insideRegionEvent.update({"eventID": (cls.event.get("netid") + str(cls.event.get("id")))})
+        cls.outsideRegionEvent.update({"eventID": (cls.event.get("netid") + str(cls.event.get("id")))})
+        dbfile="../test/data/aftershock_excludes.db"
+        logfile="../bin/aftershock.log"
+        if os.path.isfile(dbfile):
+            os.remove(dbfile)
+        if os.path.isfile(logfile):
+            os.remove(logfile)
+        cls.DB = aftershockDB("../test")
+        cls._connection = sqlite3.connect(cls.DB.db_file, timeout=15, detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
+        cls._cursor = cls._connection.cursor()
+        if cls._connection is None:
+            raise RuntimeError('Could not connect to %s' % cls.DB.db_file)
+    def testAInsertAftershockZone(self):
         """Tests to make sure aftershock flag is set"""
         self.assertTrue('aftershock' in self.queue_conf)
-#        if self._connection is None:
-#            raise RuntimeError('Could not connect to %s' % self.db_file)
+        """Tests to make sure you can insert an aftershock zone properly"""
+        self.assertTrue(self.DB.insertAftershockZone(self.event))
+    def testBCheckAftershockZone(self):
+        print(self.DB.checkAftershockZone(self.insideRegionEvent))
+        print(self.DB.checkAftershockZone(self.outsideRegionEvent))
+
+#        self.inRegion = False
+#        """Test region for an event inside the exclusion zone"""
+#        self.inRegionQuery = """SELECT DISTINCT eruleid,emaglimit,eplacename,(((((ev2x-(117.33))*(ev3y-(35.83))) - ((ev3x-(117.33))*(ev2y-(35.83))))/(((ev2x-ev1x)*(ev3y-ev1y)) - ((ev3x-ev1x)*(ev2y-ev1y))))>=0 AND ((((ev3x-(117.33))*(ev1y-(35.83))) - ((ev1x-(117.33))*(ev3y-(35.83))))/(((ev2x-ev1x)*(ev3y-ev1y)) - ((ev3x-ev1x)*(ev2y-ev1y))))>=0 AND ((((ev1x-(117.33))*(ev2y-(35.83))) - ((ev2x-(117.33))*(ev1y-(35.83))))/(((ev2x-ev1x)*(ev3y-ev1y)) - ((ev3x-ev1x)*(ev2y-ev1y))))>=0) as exclude from excludes;"""
+#        self._cursor.execute(self.inRegionQuery)
+#        self.rows = self._cursor.fetchall()
+#        for row in self.rows:
+#            print(row)
+#            self.exclude = row[3]
+#            if self.exclude == 1:
+#                self.inRegion = True
+#                break
+#        self.assertTrue(self.inRegion)
+
+    def testOutsideAftershockZone(self):
+        self.inRegion = False
+        """Test region for an event outside the exclusion zone"""
+        self.inRegionQuery = """SELECT DISTINCT eruleid,emaglimit,eplacename,(((((ev2x-(117.15))*(ev3y-(36.61))) - ((ev3x-(117.15))*(ev2y-(36.61))))/(((ev2x-ev1x)*(ev3y-ev1y)) - ((ev3x-ev1x)*(ev2y-ev1y))))>=0 AND ((((ev3x-(117.15))*(ev1y-(36.61))) - ((ev1x-(117.15))*(ev3y-(36.61))))/(((ev2x-ev1x)*(ev3y-ev1y)) - ((ev3x-ev1x)*(ev2y-ev1y))))>=0 AND ((((ev1x-(117.15))*(ev2y-(36.61))) - ((ev2x-(117.15))*(ev1y-(36.61))))/(((ev2x-ev1x)*(ev3y-ev1y)) - ((ev3x-ev1x)*(ev2y-ev1y))))>=0) as exclude from excludes;"""
+        self._cursor.execute(self.inRegionQuery)
+        self.rows = self._cursor.fetchall()
+        for row in self.rows:
+            print(row)
+            self.exclude = row[3]
+            if self.exclude == 1:
+                self.inRegion = True
+                break
+        self.assertFalse(self.inRegion)
+
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._cursor.close()
+        cls._connection.close()
+        cls._connection = None
+        cls._cursor = None
 
 
 #    def testGetDistance(self):
