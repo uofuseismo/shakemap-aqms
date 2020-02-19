@@ -43,35 +43,11 @@ class TestAftershock(unittest.TestCase):
         """Tests to make sure you can insert an aftershock zone properly"""
         self.assertTrue(self.DB.insertAftershockZone(self.event))
     def testBCheckAftershockZone(self):
-        print(self.DB.checkAftershockZone(self.insideRegionEvent))
-        print(self.DB.checkAftershockZone(self.outsideRegionEvent))
+        """Tests for an event that should be in the aftershock zone region"""
+        self.assertEqual((self.DB.checkAftershockZone(self.insideRegionEvent))[0], 1)
+        """Tests for an event that should be outside the aftershock zone region"""
+        self.assertEqual((self.DB.checkAftershockZone(self.outsideRegionEvent))[0], 0)
 
-#        self.inRegion = False
-#        """Test region for an event inside the exclusion zone"""
-#        self.inRegionQuery = """SELECT DISTINCT eruleid,emaglimit,eplacename,(((((ev2x-(117.33))*(ev3y-(35.83))) - ((ev3x-(117.33))*(ev2y-(35.83))))/(((ev2x-ev1x)*(ev3y-ev1y)) - ((ev3x-ev1x)*(ev2y-ev1y))))>=0 AND ((((ev3x-(117.33))*(ev1y-(35.83))) - ((ev1x-(117.33))*(ev3y-(35.83))))/(((ev2x-ev1x)*(ev3y-ev1y)) - ((ev3x-ev1x)*(ev2y-ev1y))))>=0 AND ((((ev1x-(117.33))*(ev2y-(35.83))) - ((ev2x-(117.33))*(ev1y-(35.83))))/(((ev2x-ev1x)*(ev3y-ev1y)) - ((ev3x-ev1x)*(ev2y-ev1y))))>=0) as exclude from excludes;"""
-#        self._cursor.execute(self.inRegionQuery)
-#        self.rows = self._cursor.fetchall()
-#        for row in self.rows:
-#            print(row)
-#            self.exclude = row[3]
-#            if self.exclude == 1:
-#                self.inRegion = True
-#                break
-#        self.assertTrue(self.inRegion)
-
-    def testOutsideAftershockZone(self):
-        self.inRegion = False
-        """Test region for an event outside the exclusion zone"""
-        self.inRegionQuery = """SELECT DISTINCT eruleid,emaglimit,eplacename,(((((ev2x-(117.15))*(ev3y-(36.61))) - ((ev3x-(117.15))*(ev2y-(36.61))))/(((ev2x-ev1x)*(ev3y-ev1y)) - ((ev3x-ev1x)*(ev2y-ev1y))))>=0 AND ((((ev3x-(117.15))*(ev1y-(36.61))) - ((ev1x-(117.15))*(ev3y-(36.61))))/(((ev2x-ev1x)*(ev3y-ev1y)) - ((ev3x-ev1x)*(ev2y-ev1y))))>=0 AND ((((ev1x-(117.15))*(ev2y-(36.61))) - ((ev2x-(117.15))*(ev1y-(36.61))))/(((ev2x-ev1x)*(ev3y-ev1y)) - ((ev3x-ev1x)*(ev2y-ev1y))))>=0) as exclude from excludes;"""
-        self._cursor.execute(self.inRegionQuery)
-        self.rows = self._cursor.fetchall()
-        for row in self.rows:
-            print(row)
-            self.exclude = row[3]
-            if self.exclude == 1:
-                self.inRegion = True
-                break
-        self.assertFalse(self.inRegion)
 
 
     @classmethod
@@ -80,22 +56,6 @@ class TestAftershock(unittest.TestCase):
         cls._connection.close()
         cls._connection = None
         cls._cursor = None
-
-
-#    def testGetDistance(self):
-#        """Tests the function that returns distance between two points"""
-        # First check for the expected values in kilometers
-#        self.assertTrue(round(getDistance(self.pointA, self.pointB))==self.expectedDistanceKM)
-        # Now check for the expected values in miles
-#        self.assertTrue(round(getDistance(self.pointA, self.pointB, True))==self.expectedDistanceMI)
-
-#    def testCheckThresholds(self):
-#        """Test thresholds are being used properly"""
-#        self.assertTrue(len(checkThresholds(self.SAMessage)) == self.expectedThresholdLen)
-
-#    def testCheckLastProcessedEvent(self):
-#        """Test that we can check against the values of the last event to be processed"""
-#        self.assertFalse(checkLastProcessedEvent(34, -119, 1560384464))
 
 
 if __name__ == '__main__':
