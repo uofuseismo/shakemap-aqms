@@ -35,7 +35,6 @@ class aftershockDB(object):
         self.AShandler = logging.FileHandler("aftershock.log")
         self.ASlogger.addHandler(self.AShandler)
         self.ASlogger.info('aftershock DB initiated')
-        print("DEBUG INITIATE")
 
         exclude_table = """ CREATE TABLE excludes (
                                 eid INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -102,8 +101,6 @@ class aftershockDB(object):
         added->the datetime added    
         """
 
-#    TIME       = time;
-#    eplacename = uc(net) . eventid;
 
         self.lat = valuesDict.get("lat")
         self.lon = valuesDict.get("lon")
@@ -116,7 +113,6 @@ class aftershockDB(object):
         self._cursor.execute(sql)
         rows = self._cursor.fetchall()
         for row in rows:
-            print(row)
             if row[0] is not None:
                 self.eruleID = row[0] + 1;
             self.ASlogger.info('Assigning eruleid %i to event %s' % (self.eruleID, self.eventID))
@@ -135,7 +131,6 @@ class aftershockDB(object):
     #
     # Multiply by 2 for two rupture lengths
         ruptureLength = ruptureLength * 2
-        print("DEBUG RUPTURE")
         self.ASlogger.info("Length is %f km" % ruptureLength)
 
         radToDeg = 57.295779
@@ -228,6 +223,7 @@ class aftershockDB(object):
 
         self.excluderegion = 0    #start by assuming it's not in an exclude region
         self.olderuleid = 0
+        self.oldmag = 0
 
         # 0 = not in an exclude region
         # 1 = in an exclude region, and it's smaller than the exclude level
@@ -257,7 +253,74 @@ class aftershockDB(object):
             if self.mag > self.oldmag:
                 self.excluderegion = 3
 
-        return "%s %s %s" % (self.excluderegion, self.excludename, self.olderuleid)
+        return (self.excluderegion, self.excludename, self.olderuleid, self.oldmag)
+
+
+
+
+    def defineAftershockZone(self, valuesDict):
+        self.lat = valuesDict.get("lat")
+        self.lon = valuesDict.get("lon")
+        self.mag = valuesDict.get("mag")
+        self.eplacename = valuesDict.get("eventID")
+        self.emaglimit = valuesDict.get("emaglimit")
+
+        self.eruleid = 0
+
+        self.gmdate = datetime.now()
+        self.ASlogger.info("Defining aftershock zone for event %s" % self.eplacename)
+        self.ASlogger.info("Now it is %s" % self.gmdate)
+        self.ASlogger.info("Event has location %s/%s. Magnitude is %s" % (lat, lon, mag))
+
+        self.sql = "SELECT eruleid,added from excludes where eplacename='%s' LIMIT 1;" % self.eplacename
+        self._cursor.execute(self.sql)
+        rows = self._cursor.fetchall()
+        for row in rows:
+            if row[0] is not None:
+                self.eruleid = row[0]
+                self.gmdate  = row[1]
+                self.ASlogger.info('Event %s has eruleID %s' % (self.eventID, self.eruleID))
+
+        if (self.eruleid > 0):
+            # There is already a region for this event, but we need to update it.
+            self.ASlogger.info("There is already a defined exclude region for this event. Delete it and re-make it with the new event parameters")
+
+        self.sql = "DELETE FROM excludes where eruleid=%s;" % self.eruleID
+        self.ASlogger.info("SQL is %s" % self.sql)
+        self._cursor.execute(self.sql)
+        self.commit()
+
+        zoneTuple = checkAftershockZone(valuesDict)
+        self.excluderegion = zoneTuple[0]
+        self.excludename = zoneTuple[1]
+        self.olderuleID = zoneTuple[2]
+        self.oldmag = zoneTuple[3]
+
+        self.ASlogger.info("Values returned are: %d, %s, %d" % (self.excluderegion, self.excludename, self.olderuleID))
+
+        if self.excluderegion == 0:
+            self.ASlogger.info("This event does not fall in a previously defined exclude region")
+
+        if self.excluderegion == 3:
+            self.ASlogger.info("This event falls in the exclude region for event %s" % self.excludename)
+            self.ASlogger.info("This event is larger than event %s, so it supersedes it" % self.excludename)
+            self.ASlogger.info("This event is M%3.1f and is larger than M%3.1f for the old event. Create a new region for this event and delete the old one." % (self.mag, self.oldmag))
+
+            self.sql = "DELETE FROM excludes where eruleid=%s;" % self.olderuleID
+            self.ASlogger.info("SQL is %s" % self.sql)
+            self._cursor.execute(self.sql)
+            self.commit()
+
+
+        # For excluderegion == 1||2, don't do anything, since this event is
+        # inside an already-existing aftershock zone. It's most likely
+        # just an aftershock of the previous event.
+
+        if self.excluderegion == 0 or self.excluderegion == 3:
+            # Create a new rule for this event.
+            insertAftershockZone(valuesDict)
+
+        return 0
 
 
 #    def getQueuedEvents(self):
