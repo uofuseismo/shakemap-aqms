@@ -24,8 +24,8 @@ class TestAftershock(unittest.TestCase):
         cls.insideRegionEvent = {"lat": 35.83, "lon": 117.33, "id": 22345678, "netid": "ci", "mag": 5.1, "emaglimit": 2}
         cls.outsideRegionEvent = {"lat": 36.61, "lon": 117.15, "id": 32345678, "netid": "ci", "mag": 5.0, "emaglimit": 2}
         cls.event.update({"eventID": (cls.event.get("netid") + str(cls.event.get("id")))})
-        cls.insideRegionEvent.update({"eventID": (cls.event.get("netid") + str(cls.event.get("id")))})
-        cls.outsideRegionEvent.update({"eventID": (cls.event.get("netid") + str(cls.event.get("id")))})
+        cls.insideRegionEvent.update({"eventID": (cls.insideRegionEvent.get("netid") + str(cls.insideRegionEvent.get("id")))})
+        cls.outsideRegionEvent.update({"eventID": (cls.outsideRegionEvent.get("netid") + str(cls.outsideRegionEvent.get("id")))})
         dbfile="../test/data/aftershock_excludes.db"
         logfile="../bin/aftershock.log"
         if os.path.isfile(dbfile):
@@ -37,16 +37,18 @@ class TestAftershock(unittest.TestCase):
         cls._cursor = cls._connection.cursor()
         if cls._connection is None:
             raise RuntimeError('Could not connect to %s' % cls.DB.db_file)
-    def testAInsertAftershockZone(self):
-        """Tests to make sure aftershock flag is set"""
+    def testADefineAftershockZone(self):
+        """Tests defining an aftershock zone"""
+        # Tests to make sure aftershock flag is set
         self.assertTrue('aftershock' in self.queue_conf)
         """Tests to make sure you can insert an aftershock zone properly"""
-        self.assertTrue(self.DB.insertAftershockZone(self.event))
+        self.assertEqual(self.DB.defineAftershockZone(self.event), 0)
     def testBCheckAftershockZone(self):
-        """Tests for an event that should be in the aftershock zone region"""
-        self.assertEqual((self.DB.checkAftershockZone(self.insideRegionEvent))[0], 1)
-        """Tests for an event that should be outside the aftershock zone region"""
-        self.assertEqual((self.DB.checkAftershockZone(self.outsideRegionEvent))[0], 0)
+        """Tests that check for aftershock zone region accuracy"""
+        # Tests for an event that should be in the aftershock zone region
+        self.assertEqual(self.DB.defineAftershockZone(self.insideRegionEvent), 1)
+        # Tests for an event that should be outside the aftershock zone region
+        self.assertEqual(self.DB.defineAftershockZone(self.outsideRegionEvent), 0)
 
 
 
