@@ -19,6 +19,7 @@ Installation
 - Do ``pip install git+git://github.com/ggann/shakemap-aqms.git``. 
   As an alternative, you can clone the repo and use ``pip install``
   on the local directory where you cloned the repo.
+- Deploy the ``bin`` folder to a directory of your choosing.  
 - Configure your shake.conf file so that ``coremods`` includes
   ``shakemap_aqms.coremods``.
 - Copy the file *aqms.conf* from the *shakemap_aqms/config* directory 
@@ -34,8 +35,8 @@ Installation
   from the *shakemap_aqms/config* directory into your *<INSTALL\_DIR>/config*
   directory and edit it to receive messages on the same port (and 
   from the same servers that your current (SM 3.5) ``queue`` process
-  does. You may then run ``aqms_queue`` and it will receive the 
-  notifications from the old ``shake_alarm`` and ``shake_cancel``
+  does. You may then run ``aqms_queue`` from the ``bin`` folder you deployed earlier
+  and it will receive the notifications from the old ``shake_alarm`` and ``shake_cancel``
   scripts that your AQMS systems are running. There are new python
   versions of ``shake_alarm`` and ``shake_cancel`` that may be used
   if desired. (Don't forget to edit those scripts to set the remote
