@@ -15,10 +15,10 @@ import daemon
 import lockfile
 
 # Local imports
-from aftershock import aftershockDB
 from shakemap.utils.config import get_config_paths
 from shakelib.rupture import constants  # added by GG
 import shakemap.utils.queue as queue
+from shakemap_aqms.aftershock import aftershockDB
 from shakemap_aqms.util import (get_aqms_config,
                                 get_eqinfo)
 
