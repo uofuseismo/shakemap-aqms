@@ -15,6 +15,7 @@ import daemon
 import lockfile
 
 # Local imports
+from aftershock import aftershockDB
 from shakemap.utils.config import get_config_paths
 from shakelib.rupture import constants  # added by GG
 import shakemap.utils.queue as queue
@@ -111,6 +112,11 @@ def main(pargs):
     with get_context(context, pargs.attached):
         logger = get_logger(logpath, pargs.attached)
         #
+        # Create/retrieve the database for aftershock suppression
+        #
+        if queue_conf['aftershock'] == '1':  # aftershock flag is set, load the DB
+            aftershockDBobj = aftershockDB(install_path)            
+        #
         # Create the socket
         #
         qsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -174,6 +180,15 @@ def main(pargs):
                     logger.warning("Couldn't find event %s in database" %
                                    eventid)
                     continue
+                # check for aftershock zone
+                if (event.get('mag') >= 5.5 ) and queue_conf['aftershock'] == '1':
+                    eventID = event.get("netid") + str(event.get("id"))
+                    aftershockDict = {"lat": event.get('lat'), "lon": event.get('lon'), "eventID": eventID, "mag": event.get('mag'), "emaglimit": float(queue_conf['emaglimit'])}
+                    logger.warning("Event is over M5.5, so check to see if we need to define or update an aftershock zone for event " + eventID)
+                    returnVal = aftershockDBobj.defineAftershockZone(aftershockDict)
+                    if returnVal == 1 or returnVal == 2:
+                        logger.warning("Event is in an aftershock zone, will skip")
+                        continue
                 try:
                     # Shakemap code keeps value as datetime, need string for JSON parsing by queue
                     dt = event['time']
