@@ -114,7 +114,8 @@ def main(pargs):
         #
         # Create/retrieve the database for aftershock suppression
         #
-        if queue_conf['aftershock'] == '1':  # aftershock flag is set, load the DB
+        aftershockThreshold = float(queue_conf['aftershock'])
+        if aftershockThreshold > 0:  # aftershock flag is set, load the DB
             aftershockDBobj = aftershockDB(install_path)            
         #
         # Create the socket
@@ -181,7 +182,7 @@ def main(pargs):
                                    eventid)
                     continue
                 # check for aftershock zone
-                if (event.get('mag') >= 5.5 ) and queue_conf['aftershock'] == '1':
+                if (event.get('mag') >= aftershockThreshold ) and aftershockThreshold > 0:
                     eventID = event.get("netid") + str(event.get("id"))
                     aftershockDict = {"lat": event.get('lat'), "lon": event.get('lon'), "eventID": eventID, "mag": event.get('mag'), "emaglimit": float(queue_conf['emaglimit'])}
                     logger.warning("Event is over M5.5, so check to see if we need to define or update an aftershock zone for event " + eventID)
