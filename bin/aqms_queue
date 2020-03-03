@@ -98,6 +98,7 @@ def main(pargs):
 
     if 'localhost' not in queue_conf['servers']:
         queue_conf['servers'].append('localhost')
+    aftershockThreshold = float(queue_conf['aftershock'])
     #
     # Turn this process into a daemon
     #
@@ -114,7 +115,6 @@ def main(pargs):
         #
         # Create/retrieve the database for aftershock suppression
         #
-        aftershockThreshold = float(queue_conf['aftershock'])
         if aftershockThreshold > 0:  # aftershock flag is set, load the DB
             aftershockDBobj = aftershockDB(install_path)            
         #
@@ -182,10 +182,11 @@ def main(pargs):
                                    eventid)
                     continue
                 # check for aftershock zone
-                if (event.get('mag') >= aftershockThreshold ) and aftershockThreshold > 0:
+                logger.info('Event mag is %f' % event.get('mag'))
+                if event.get('mag') >= aftershockThreshold and aftershockThreshold > 0:
                     eventID = event.get("netid") + str(event.get("id"))
                     aftershockDict = {"lat": event.get('lat'), "lon": event.get('lon'), "eventID": eventID, "mag": event.get('mag'), "emaglimit": float(queue_conf['emaglimit'])}
-                    logger.warning("Event is over M5.5, so check to see if we need to define or update an aftershock zone for event " + eventID)
+                    logger.warning("Event is over M%3.1f, do aftershock check for event %s" %  (aftershockThreshold, eventID))
                     returnVal = aftershockDBobj.defineAftershockZone(aftershockDict)
                     if returnVal == 1 or returnVal == 2:
                         logger.warning("Event is in an aftershock zone, will skip")
