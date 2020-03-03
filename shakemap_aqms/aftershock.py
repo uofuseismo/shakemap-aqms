@@ -20,7 +20,8 @@ class aftershockDB(object):
         self.ASlogger = logging.getLogger('aftershock')
         self.ASlogger.setLevel(logging.INFO)
         self.ASlogger.propagate = False
-        self.AShandler = logging.FileHandler("aftershock.log")
+        self.logfile = os.path.join(ipath, 'logs', 'aftershock.log')
+        self.AShandler = logging.FileHandler(self.logfile)
         self.ASlogger.addHandler(self.AShandler)
         self.ASlogger.info('aftershock DB initiated')
 
