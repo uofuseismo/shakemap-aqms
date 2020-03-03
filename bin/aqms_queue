@@ -188,9 +188,12 @@ def main(pargs):
                     aftershockDict = {"lat": event.get('lat'), "lon": event.get('lon'), "eventID": eventID, "mag": event.get('mag'), "emaglimit": float(queue_conf['emaglimit'])}
                     logger.warning("Event is over M%3.1f, do aftershock check for event %s" %  (aftershockThreshold, eventID))
                     returnVal = aftershockDBobj.defineAftershockZone(aftershockDict)
-                    if returnVal == 1 or returnVal == 2:
-                        logger.warning("Event is in an aftershock zone, will skip")
+                    if returnVal == 1: 
+                        logger.warning("Event is in an aftershock zone and below the exclusion limit, will skip")
                         continue
+                    if returnVal == 2:
+                        logger.warning("Event is in an aftershock zone and above the exclusion limit, will process")
+
                 try:
                     # Shakemap code keeps value as datetime, need string for JSON parsing by queue
                     dt = event['time']
