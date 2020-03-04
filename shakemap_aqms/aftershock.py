@@ -254,7 +254,7 @@ class aftershockDB(object):
         self.eplacename = valuesDict.get("eventID")
         self.emaglimit = valuesDict.get("emaglimit")
 
-        self.eruleID = 0
+        self.eruleID = None
 
         self.gmdate = datetime.now().strftime("%d-%b-%Y %H:%M:%S")
         self.ASlogger.info("Defining aftershock zone for event %s" % self.eplacename)
@@ -264,13 +264,17 @@ class aftershockDB(object):
         self.sql = "SELECT eruleid,added from excludes where eplacename='%s' LIMIT 1;" % self.eplacename
         self._cursor.execute(self.sql)
         rows = self._cursor.fetchall()
+        self.ASlogger.info("length of rows: %i" % len(rows))
         for row in rows:
+            self.ASlogger.info("__DEBUGROWS__")
+            self.ASlogger.info(row[0])
+            self.ASlogger.info(row[1])
             if row[0] is not None:
-                self.eruleid = row[0]
+                self.eruleID = row[0]
                 self.gmdate  = row[1]
                 self.ASlogger.info('Event %s has eruleID %s' % (self.eventID, self.eruleID))
 
-        if (self.eruleID > 0):
+        if self.eruleID is not None:
             # There is already a region for this event, but we need to update it.
             self.ASlogger.info("There is already a defined exclude region for this event. Delete it and re-make it with the new event parameters")
 
