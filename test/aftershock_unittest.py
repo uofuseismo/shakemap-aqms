@@ -4,6 +4,7 @@
 
 import os
 import unittest
+import time
 import logging
 import sqlite3
 
@@ -26,8 +27,8 @@ class TestAftershock(unittest.TestCase):
         cls.event.update({"eventID": (cls.event.get("netid") + str(cls.event.get("id")))})
         cls.insideRegionEvent.update({"eventID": (cls.insideRegionEvent.get("netid") + str(cls.insideRegionEvent.get("id")))})
         cls.outsideRegionEvent.update({"eventID": (cls.outsideRegionEvent.get("netid") + str(cls.outsideRegionEvent.get("id")))})
-        dbfile="../test/data/aftershock_excludes.db"
-        logfile="../bin/aftershock.log"
+        dbfile="data/aftershock_excludes.db"
+        logfile="logs/aftershock.log"
         if os.path.isfile(dbfile):
             os.remove(dbfile)
         if os.path.isfile(logfile):
@@ -43,6 +44,11 @@ class TestAftershock(unittest.TestCase):
         self.assertTrue('aftershock' in self.queue_conf)
         """Tests to make sure you can insert an aftershock zone properly"""
         self.assertEqual(self.DB.defineAftershockZone(self.event), 0)
+        time.sleep(5)
+        """Tests that previous event of same ID will be replaced properly"""
+        self.assertEqual(self.DB.defineAftershockZone(self.event), 0)
+
+        
     def testBCheckAftershockZone(self):
         """Tests that check for aftershock zone region accuracy"""
         # Tests for an event that should be in the aftershock zone region
