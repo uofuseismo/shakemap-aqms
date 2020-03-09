@@ -288,7 +288,7 @@ class aftershockDB(object):
         self.olderuleID = zoneTuple[2]
         self.oldmag = zoneTuple[3]
 
-        self.ASlogger.info("Values returned are: %d, %s, %d" % (self.excluderegion, self.excludename, self.olderuleID))
+        self.ASlogger.info("Values returned are: %d, %s, %d, %f" % (self.excluderegion, self.excludename, self.olderuleID, self.oldmag))
 
         if self.excluderegion == 0:
             self.ASlogger.info("This event does not fall in a previously defined exclude region")
