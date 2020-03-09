@@ -17,11 +17,15 @@ class aftershockDB(object):
     The db file can be removed if the operator wants a fresh start.
     """
     def __init__(self, ipath):
+
         self.ASlogger = logging.getLogger('aftershock')
         self.ASlogger.setLevel(logging.INFO)
         self.ASlogger.propagate = False
-        self.logfile = os.path.join(ipath, 'logs', 'aftershock.log')
-        self.AShandler = logging.FileHandler(self.logfile)
+        self.logFile = os.path.join(ipath, 'logs', 'aftershock.log')
+        self.AShandler = TimedRotatingFileHandler(self.logFile,
+                                                  when="d",
+                                                  interval=1,
+                                                  backupCount=60)
         self.ASlogger.addHandler(self.AShandler)
         self.ASlogger.info('aftershock DB initiated')
 
