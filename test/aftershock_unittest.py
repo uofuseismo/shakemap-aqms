@@ -38,7 +38,7 @@ class TestAftershock(unittest.TestCase):
         cls._cursor = cls._connection.cursor()
         if cls._connection is None:
             raise RuntimeError('Could not connect to %s' % cls.DB.db_file)
-    def testADefineAftershockZone(self):
+    def testA_DefineAftershockZone(self):
         """Tests defining an aftershock zone"""
         # Tests to make sure aftershock flag is set
         self.assertTrue('aftershock' in self.queue_conf)
@@ -49,12 +49,20 @@ class TestAftershock(unittest.TestCase):
         self.assertEqual(self.DB.defineAftershockZone(self.event), 0)
 
         
-    def testBCheckAftershockZone(self):
+    def testB_CheckAftershockZone(self):
         """Tests that check for aftershock zone region accuracy"""
         # Tests for an event that should be in the aftershock zone region
         self.assertEqual(self.DB.defineAftershockZone(self.insideRegionEvent), 1)
         # Tests for an event that should be outside the aftershock zone region
         self.assertEqual(self.DB.defineAftershockZone(self.outsideRegionEvent), 0)
+
+    def testC_CleanupAftershockZones(self):
+        """Tests that check for proper aftershock database cleanup"""
+        # Tests for an event that should be cleaned up
+        self.sql = 'UPDATE excludes SET added = "13-Jan-2020 21:09:50" WHERE eplacename = "ci12345678";'
+        self.__class__._cursor.execute(self.sql)
+        self.__class__._connection.commit()
+        self.assertTrue(self.DB.cleanupAftershockZones(2))
 
 
 
