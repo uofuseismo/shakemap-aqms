@@ -312,7 +312,7 @@ class aftershockDB(object):
             # Create a new rule for this event.
             self.insertAftershockZone(valuesDict)
 
-                return self.excluderegion
+        return self.excluderegion
 
 
 
