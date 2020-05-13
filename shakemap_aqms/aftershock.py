@@ -312,11 +312,11 @@ class aftershockDB(object):
             # Create a new rule for this event.
             self.insertAftershockZone(valuesDict)
 
-        return self.excluderegion
+                return self.excluderegion
 
 
 
-    def cleanupAftershockZones(self):
+    def cleanupAftershockZones(self, emaglimit):
 
         self.epochTime = int(time())
 
@@ -327,26 +327,27 @@ class aftershockDB(object):
             if row[0] is not None:
                 self.eruleID = row[0]
                 self.eplacename = row[1]
-                self.emaglimit = row[2]
+                self.DBemaglimit = row[2]
                 self.gmdate = row[3]
-            self.ASlogger.info('Event eruleid %d (%s) has mag limit %3.1f. It was added on %s' % (self.eruleID, self.eplacename, self.emaglimit, self.gmdate))
-            oldmag = self.emaglimit + 2
+            self.ASlogger.info('Event eruleid %d (%s) has mag limit %3.1f. It was added on %s' % (self.eruleID, self.eplacename, self.DBemaglimit, self.gmdate))
+            oldmag = emaglimit + self.DBemaglimit
 
             timelimit = 14.5*((oldmag - 5.24)**2) + 10
             self.ASlogger.info("timelimit is %3.2f days" % timelimit)
 
             cutofftime = self.epochTime - 86400 * timelimit
-            testtime = int(datetime.strptime(gmdate, "%d-%b-%Y %H:%M:%S").timestamp())
+            testtime = int(datetime.strptime(self.gmdate, "%d-%b-%Y %H:%M:%S").timestamp())
             self.ASlogger.info("Added time is %d, cutoff is %f (%f days)" % (testtime, cutofftime, timelimit))
             timeleft = testtime - cutofftime
             daysleft = timeleft/86400
             self.ASlogger.info("Time left for this rule: %f (%f days)" % (timeleft, daysleft))
 
             if cutofftime > testtime:
-                self.ASlogger.info("This exclusion rule (eruleid:%d) should be axed" % self.eruleid)
-                sql1 = "DELETE from excludes where eruleid=%d;" % eruleid
-                self.ASlogger.info("SQL is %s" % sql1)
+                self.ASlogger.info("This exclusion rule (eruleid:%d) should be axed" % self.eruleID)
+                self.sql1 = "DELETE from excludes where eruleid=%d;" % self.eruleID
+                self.ASlogger.info("SQL is %s" % self.sql1)
                 self._cursor.execute(self.sql1)
                 self.commit()
 
         self.ASlogger.info("Ending aftershock exclusion zone cleanup run")
+        return True
