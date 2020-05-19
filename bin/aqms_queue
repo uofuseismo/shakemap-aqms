@@ -184,8 +184,13 @@ def main(pargs):
                 # check for aftershock zone
                 logger.info('Event mag is %f' % event.get('mag'))
                 if event.get('mag') >= aftershockThreshold and aftershockThreshold > 0:
+                    # let's check and clean up old aftershock zones first
+                    emaglimit = float(queue_conf['emaglimit'])
+                    logger.info('emaglimit set to %f' % emaglimit)
+                    returnVal = aftershockDBobj.cleanupAftershockZones(emaglimit)
+                    logger.info('Aftershock zone cleanup finished')
                     eventID = event.get("netid") + str(event.get("id"))
-                    aftershockDict = {"lat": event.get('lat'), "lon": event.get('lon'), "eventID": eventID, "mag": event.get('mag'), "emaglimit": float(queue_conf['emaglimit'])}
+                    aftershockDict = {"lat": event.get('lat'), "lon": event.get('lon'), "eventID": eventID, "mag": event.get('mag'), "emaglimit": emaglimit}
                     logger.warning("Event is over M%3.1f, do aftershock check for event %s" %  (aftershockThreshold, eventID))
                     returnVal = aftershockDBobj.defineAftershockZone(aftershockDict)
                     if returnVal == 1: 
