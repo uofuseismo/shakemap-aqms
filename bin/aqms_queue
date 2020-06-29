@@ -181,23 +181,26 @@ def main(pargs):
                     logger.warning("Couldn't find event %s in database" %
                                    eventid)
                     continue
-                # check for aftershock zone
+
+                # check if event is in aftershock zone and needs suppression
                 logger.info('Event mag is %f' % event.get('mag'))
+                eventID = event.get("netid") + str(event.get("id"))
+                aftershockDict = {"lat": event.get('lat'), "lon": event.get('lon'), "eventID": eventID, "mag": event.get('mag'), "emaglimit": emaglimit}
+                zoneTuple = self.checkAftershockZone(valuesDict)
+                if zoneTuple[0] == 1:    # this event is in an exclusion zone and below limit, skip
+                    logger.warning("Event is in an aftershock zone and below the exclusion limit, will skip")
+                    continue
+
+                # define aftershock zone if necessary
                 if event.get('mag') >= aftershockThreshold and aftershockThreshold > 0:
                     # let's check and clean up old aftershock zones first
                     emaglimit = float(queue_conf['emaglimit'])
                     logger.info('emaglimit set to %f' % emaglimit)
                     returnVal = aftershockDBobj.cleanupAftershockZones(emaglimit)
                     logger.info('Aftershock zone cleanup finished')
-                    eventID = event.get("netid") + str(event.get("id"))
-                    aftershockDict = {"lat": event.get('lat'), "lon": event.get('lon'), "eventID": eventID, "mag": event.get('mag'), "emaglimit": emaglimit}
-                    logger.warning("Event is over M%3.1f, do aftershock check for event %s" %  (aftershockThreshold, eventID))
+                    # now let's attempt to define a new aftershock zone
+                    logger.warning("Event is over M%3.1f, do aftershock define for event %s" %  (aftershockThreshold, eventID))
                     returnVal = aftershockDBobj.defineAftershockZone(aftershockDict)
-                    if returnVal == 1: 
-                        logger.warning("Event is in an aftershock zone and below the exclusion limit, will skip")
-                        continue
-                    if returnVal == 2:
-                        logger.warning("Event is in an aftershock zone and above the exclusion limit, will process")
 
                 try:
                     # Shakemap code keeps value as datetime, need string for JSON parsing by queue
