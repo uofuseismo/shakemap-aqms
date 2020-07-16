@@ -318,7 +318,16 @@ class aftershockDB(object):
 
 
     def cleanupAftershockZones(self, emaglimit):
+        """This cleans up any aftershock exclusion zones that have passed their expiration date.
+           The number of days for an aftershock zone to be kept is calculated as 14.5*(($oldmag - 5.24)**2) + 10. 
+           This approximates these values:
 
+           M5.5-M6.0: 10 days
+           M6.0-M6.5: 20 days
+           M6.5-M7.0: 30 days
+           M7.0-M8.0: 60 days
+           M8.0+: 120 days
+        """
         self.epochTime = int(time())
 
         sql = "SELECT eruleid,eplacename,emaglimit,added from excludes GROUP BY eruleid ORDER BY added;"
