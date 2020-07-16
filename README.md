@@ -16,7 +16,7 @@ Installation
 - If they are not already on your system, install the appropriate
   Oracle client libraries. This topic is covered in the cx\_Oracle
   install instructions mentioned above.
-- Do ``pip install git+git://github.com/ggann/shakemap-aqms.git``. 
+- Do ``pip install git+git://github.com/shakemap-ci/shakemap-aqms.git``. 
   As an alternative, you can clone the repo and use ``pip install``
   on the local directory where you cloned the repo.
 - Deploy the ``bin`` folder to a directory of your choosing.  
