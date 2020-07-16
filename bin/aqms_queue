@@ -189,6 +189,10 @@ def main(pargs):
                 logger.info('emaglimit configuration set to %f' % emaglimit)
                 aftershockDict = {"lat": event.get('lat'), "lon": event.get('lon'), "eventID": eventID, "mag": event.get('mag'), "emaglimit": emaglimit}
 
+                # first let's check and clean up old aftershock zones first
+                returnVal = aftershockDBobj.cleanupAftershockZones(emaglimit)
+                logger.info('Aftershock zone cleanup finished')
+
                 zoneTuple = aftershockDBobj.checkAftershockZone(aftershockDict)
                 if zoneTuple[0] == 1:    # this event is in an exclusion zone and below limit, skip
                     logger.warning("Event is in an aftershock zone and below the exclusion limit, will skip")
@@ -196,10 +200,7 @@ def main(pargs):
 
                 # define aftershock zone if necessary
                 if event.get('mag') >= aftershockThreshold and aftershockThreshold > 0:
-                    # let's check and clean up old aftershock zones first
-                    returnVal = aftershockDBobj.cleanupAftershockZones(emaglimit)
-                    logger.info('Aftershock zone cleanup finished')
-                    # now let's attempt to define a new aftershock zone
+                    # let's attempt to define a new aftershock zone
                     logger.warning("Event is over M%3.1f, do aftershock define for event %s" %  (aftershockThreshold, eventID))
                     returnVal = aftershockDBobj.defineAftershockZone(aftershockDict)
 
