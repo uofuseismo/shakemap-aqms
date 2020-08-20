@@ -266,23 +266,27 @@ class aftershockDB(object):
         self.ASlogger.info("Now it is %s" % self.gmdate)
         self.ASlogger.info("Event has location %s/%s. Magnitude is %s" % (self.lat, self.lon, self.mag))
 
-        self.sql = "SELECT eruleid,added from excludes where eplacename='%s' LIMIT 1;" % self.eplacename
-        self._cursor.execute(self.sql)
-        rows = self._cursor.fetchall()
-        for row in rows:
-            if row[0] is not None:
-                self.eruleID = row[0]
-                self.gmdate  = row[1]
-                self.ASlogger.info('Event %s has eruleID %s' % (self.eventID, self.eruleID))
-
-        if self.eruleID is not None:
-            # There is already a region for this event, but we need to update it.
-            self.ASlogger.info("There is already a defined exclude region for this event. Delete it and re-make it with the new event parameters")
-            self.sql = "DELETE FROM excludes where eruleid=%s;" % self.eruleID
-            self.ASlogger.info("SQL is %s" % self.sql)
+        try:
+            self.sql = "SELECT eruleid,added from excludes where eplacename='%s' LIMIT 1;" % self.eplacename
             self._cursor.execute(self.sql)
-            self.commit()
+            rows = self._cursor.fetchall()
+            for row in rows:
+                if row[0] is not None:
+                    self.eruleID = row[0]
+                    self.gmdate  = row[1]
+                    self.ASlogger.info('Event %s has eruleID %s' % (self.eplacename, self.eruleID))
 
+            if self.eruleID is not None:
+                # There is already a region for this event, but we need to update it.
+                self.ASlogger.info("There is already a defined exclude region for this event. Delete it and re-make it with the new event parameters")
+                self.sql = "DELETE FROM excludes where eruleid=%s;" % self.eruleID
+                self.ASlogger.info("SQL is %s" % self.sql)
+                self._cursor.execute(self.sql)
+                self.commit()
+
+        except Exception as e:
+            self.ASlogger.error("Aftershock DB query failed")
+            self.ASlogger.error(e)
         zoneTuple = self.checkAftershockZone(valuesDict)
         self.excluderegion = zoneTuple[0]
         self.excludename = zoneTuple[1]
