@@ -84,6 +84,9 @@ class AQMSDb2XMLModule(CoreModule):
                 desc, net, sta, chan, loc, lat, lon, elev, staname = line
                 loc = loc.replace(' ', '-')
                 netsta = net + '.' + sta
+                if staname is None:
+                    print("staname for %s.%s is empty - skipping"%(net, sta))
+                    continue
                 if ' - ' in staname:
                     staname, staloc = staname.split(' - ', maxsplit=1)
                 else:
