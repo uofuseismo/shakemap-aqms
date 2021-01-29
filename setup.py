@@ -3,7 +3,7 @@ import os.path
 
 
 setup(name='shakemap_aqms',
-      version=1.0,
+      version='1.0',
       description='AQMS Modules for ShakeMap',
       author='Bruce Worden',
       author_email='cbworden@usgs.gov',
